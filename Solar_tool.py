@@ -7,6 +7,7 @@ from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+import numpy_financial as npf  # Fixed IRR/NPV
 
 # -------------------------
 # Data directory
@@ -44,7 +45,6 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile, p
     cashflows = []
 
     for y in years:
-        # Apply degradation
         solar_yield = solar_profile.iloc[:, 1] * (1 - degradation) ** (y - 1)
         demand = demand_profile.iloc[:, 1]
 
@@ -60,7 +60,6 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile, p
             cashflows.append(net)
 
         elif model == "Landlord Funded (PPA to Tenant)":
-            # Landlord receives PPA payments, pays OPEX, gets export revenue
             landlord_cf = self_consumption * ppa_rate + export * export_tariff - opex
             if y == 1:
                 landlord_cf -= capex
@@ -69,13 +68,13 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile, p
     # Convert to DataFrame
     if model == "Owner Occupier":
         df = pd.DataFrame({"Year": years, "Owner Cashflow": cashflows})
-        irr_owner = np.irr(cashflows)
-        npv_owner = np.npv(0.07, cashflows)
+        irr_owner = npf.irr(cashflows)
+        npv_owner = npf.npv(0.07, cashflows)
         return df, {"Owner Occupier": {"NPV": npv_owner, "IRR": irr_owner}}
     else:
         df = pd.DataFrame({"Year": years, "Landlord Cashflow": cashflows})
-        irr_landlord = np.irr(cashflows)
-        npv_landlord = np.npv(0.07, cashflows)
+        irr_landlord = npf.irr(cashflows)
+        npv_landlord = npf.npv(0.07, cashflows)
         return df, {"Landlord": {"NPV": npv_landlord, "IRR": irr_landlord}}
 
 # -------------------------

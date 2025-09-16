@@ -7,7 +7,7 @@ from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
-import numpy_financial as npf  # Fixed IRR/NPV
+import numpy_financial as npf  # Only for IRR
 
 # -------------------------
 # Data directory
@@ -70,13 +70,11 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile,
     if model == "Owner Occupier":
         df = pd.DataFrame({"Year": years, "Owner Cashflow": cashflows})
         irr_owner = npf.irr(cashflows)
-        npv_owner = npf.npv(0.07, cashflows)
-        return df, {"Owner Occupier": {"NPV": npv_owner, "IRR": irr_owner}}
+        return df, {"Owner Occupier": {"IRR": irr_owner}}
     else:
         df = pd.DataFrame({"Year": years, "Landlord Cashflow": cashflows})
         irr_landlord = npf.irr(cashflows)
-        npv_landlord = npf.npv(0.07, cashflows)
-        return df, {"Landlord": {"NPV": npv_landlord, "IRR": irr_landlord}}
+        return df, {"Landlord": {"IRR": irr_landlord}}
 
 # -------------------------
 # PDF export
@@ -87,7 +85,7 @@ def export_pdf(summary, financials, df, chart_buf):
     styles = getSampleStyleSheet()
     story = []
 
-    # Logo
+    # Logo on top right
     logo_path = os.path.join(DATA_DIR, "savills_logo.png")
     if os.path.exists(logo_path):
         story.append(Image(logo_path, width=100, height=50, hAlign="RIGHT"))
@@ -102,15 +100,13 @@ def export_pdf(summary, financials, df, chart_buf):
     # Financials
     story.append(Paragraph("<b>Financial Metrics</b>", styles['Heading2']))
     table_data = [["Metric", *financials.keys()]]
-    metrics = ["NPV (£)", "IRR (%)"]
+    metrics = ["IRR (%)"]
     for m in metrics:
         row = [m]
         for actor in financials.keys():
             val = financials[actor][m.split()[0]]
             if val is None:
                 row.append("-")
-            elif "NPV" in m:
-                row.append(f"£{val:,.0f}")
             else:
                 row.append(f"{val*100:.1f}%")
         table_data.append(row)
@@ -134,7 +130,13 @@ def export_pdf(summary, financials, df, chart_buf):
 # Streamlit app
 # -------------------------
 def main():
+    st.set_page_config(layout="wide")
     st.title("☀️ Solar Modelling Tool")
+
+    # App logo top-left
+    logo_path = os.path.join(DATA_DIR, "savills_logo.png")
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=150)
 
     profiles = load_profiles()
 
@@ -158,22 +160,20 @@ def main():
         region = st.selectbox("Select Region", ["South", "Midlands", "Scotland"])
         solar_profile = profiles[f"Solar_{region}"]
 
+    # Main inputs
     system_size = st.number_input("System Size (kW)", min_value=10, max_value=5000, value=500, step=10)
-
-    # New inputs
     capex_per_kw = st.number_input("CAPEX (£/kW)", 0.0, 5000.0, 800.0)
     opex_per_kw = st.number_input("O&M (£/kW/year)", 0.0, 200.0, 15.0)
     ppa_rate = st.number_input("PPA Rate (£/kWh)", 0.0, 1.0, 0.18)
     import_tariff = st.number_input("Import Tariff (£/kWh)", 0.0, 1.0, 0.25)
     export_tariff = st.number_input("Export Tariff (£/kWh)", 0.0, 1.0, 0.08)
     project_life = st.number_input("Project Lifespan (years)", 1, 50, 25)
-    replace_years = st.sidebar.multiselect("Replacement Years", list(range(1, 51)), [15])
     inflation = st.number_input("Annual Inflation Rate (%)", 0.0, 10.0, 2.0) / 100
+    replace_years = st.multiselect("Replacement Years", list(range(1, 51)), [15])
     export_allowed = st.checkbox("Export Allowed?", True)
-
     model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
 
-    # Run simulation button
+    # Run simulation
     if st.button("Run / Update Simulation"):
         if demand_profile is not None and solar_profile is not None:
             df, financials = calculate_financials(
@@ -199,7 +199,7 @@ def main():
             })
 
             # Financials
-            st.subheader("Financial Metrics")
+            st.subheader("Financial Metrics (IRR only)")
             st.dataframe(financials)
 
             # Cashflow plot

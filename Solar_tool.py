@@ -7,7 +7,7 @@ from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
-import numpy_financial as npf
+import numpy_financial as npf  # Fixed IRR/NPV
 
 # -------------------------
 # Data directory
@@ -15,131 +15,218 @@ import numpy_financial as npf
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
 # -------------------------
-# Load uploaded profiles
+# Load benchmark and solar profiles
 # -------------------------
-def load_data():
-    demand_upload = st.file_uploader("Upload half-hourly building demand profile (CSV)", type="csv", key="demand")
-    solar_upload = st.file_uploader("Upload half-hourly solar generation profile (CSV)", type="csv", key="solar")
-    
-    demand_df = None
-    solar_df = None
-    
-    if demand_upload is not None:
-        demand_df = pd.read_csv(demand_upload, parse_dates=True, index_col=0)
-    if solar_upload is not None:
-        solar_df = pd.read_csv(solar_upload, parse_dates=True, index_col=0)
-    
-    original_kwp = None
-    if solar_df is not None:
-        original_kwp = st.number_input("Original kWp of the uploaded solar profile", min_value=0.1, value=100.0, step=10.0)
-    
-    return solar_df, original_kwp, demand_df
+def load_profiles():
+    profiles = {
+        "Benchmark_Office": pd.read_csv(os.path.join(DATA_DIR, "Benchmark_Profile_Office.csv")),
+        "Benchmark_Storage": pd.read_csv(os.path.join(DATA_DIR, "Benchmark_Profile_Storage.csv")),
+        "Solar_South": pd.read_csv(os.path.join(DATA_DIR, "Solar_Profile_South.csv")),
+        "Solar_Midlands": pd.read_csv(os.path.join(DATA_DIR, "Solar_Profile_Midlands.csv")),
+        "Solar_Scotland": pd.read_csv(os.path.join(DATA_DIR, "Solar_Profile_Scotland.csv")),
+    }
+    return profiles
 
 # -------------------------
-# Financial simulation
+# Financial and energy calculations
 # -------------------------
-def simulate(solar_gen, original_kwp, demand, solar_kWp, capex_per_kW, opex_per_kW, ppa_rate,
-             import_tariff, export_tariff, project_life, replace_years, inflation, export_allowed, model):
+def calculate_financials(model, system_size_kw, solar_profile, demand_profile,
+                         project_life=25, capex_per_kw=800, opex_per_kw=15,
+                         import_tariff=0.25, export_tariff=0.08, ppa_rate=0.18,
+                         replace_years=[15], inflation=0.02, export_allowed=True):
     
-    results = []
-    annual_cashflows = []
-    
-    capex = solar_kWp * capex_per_kW
-    opex = solar_kWp * opex_per_kW
-    replacement_cost = 0.2 * capex  # Inverter replacement assumption
-    
-    scale_factor = solar_kWp / original_kwp
-    scaled_solar = solar_gen * scale_factor
-    
-    for year in range(1, project_life + 1):
-        adj_factor = (1 + inflation) ** (year - 1)
-        demand_total = demand.sum()
-        
-        overlap = np.minimum(scaled_solar, demand)
-        export = scaled_solar - overlap if export_allowed else np.maximum(scaled_solar - demand, 0)
-        grid_import = demand - overlap
-        
+    degradation = 0.005  # 0.5% per year
+    capex = system_size_kw * capex_per_kw
+    opex = system_size_kw * opex_per_kw
+
+    years = list(range(1, project_life + 1))
+    cashflows = []
+
+    for y in years:
+        solar_yield = solar_profile.iloc[:, 1] * (1 - degradation) ** (y - 1)
+        demand = demand_profile.iloc[:, 1]
+
+        self_consumption = np.minimum(solar_yield, demand).sum()
+        export = np.maximum(solar_yield - demand, 0).sum() if export_allowed else 0
+
         if model == "Owner Occupier":
-            savings = overlap.sum() * import_tariff + export.sum() * export_tariff - opex
-            if year == 1:
-                savings -= capex
-            annual_cashflows.append(savings)
+            savings = self_consumption * import_tariff
+            export_rev = export * export_tariff
+            net = savings + export_rev - opex
+            if y == 1:
+                net -= capex
+            if y in replace_years:
+                net -= 0.2 * capex  # replacement
+            cashflows.append(net)
+
         elif model == "Landlord Funded (PPA to Tenant)":
-            cashflow = overlap.sum() * ppa_rate + export.sum() * export_tariff - opex
-            if year == 1:
-                cashflow -= capex
-            annual_cashflows.append(cashflow)
-        
-        if year in replace_years:
-            annual_cashflows[-1] -= replacement_cost * adj_factor
-        
-        results.append({
-            'Year': year,
-            'Demand (kWh)': demand_total,
-            'Solar (kWh)': scaled_solar.sum(),
-            'Self Consumption (kWh)': overlap.sum(),
-            'Exported (kWh)': export.sum(),
-            'Grid Import (kWh)': grid_import.sum(),
-            'Annual Cashflow': annual_cashflows[-1]
-        })
-    
-    df = pd.DataFrame(results)
-    
-    irr = npf.irr(annual_cashflows)
-    npv = npf.npv(0.07, annual_cashflows)
-    
-    financials = {model: {"NPV": npv, "IRR": irr}}
-    
-    return df, financials, scaled_solar, capex
+            landlord_cf = self_consumption * ppa_rate + export * export_tariff - opex
+            if y == 1:
+                landlord_cf -= capex
+            if y in replace_years:
+                landlord_cf -= 0.2 * capex
+            cashflows.append(landlord_cf)
+
+    if model == "Owner Occupier":
+        df = pd.DataFrame({"Year": years, "Owner Cashflow": cashflows})
+        irr_owner = npf.irr(cashflows)
+        npv_owner = npf.npv(0.07, cashflows)
+        return df, {"Owner Occupier": {"NPV": npv_owner, "IRR": irr_owner}}
+    else:
+        df = pd.DataFrame({"Year": years, "Landlord Cashflow": cashflows})
+        irr_landlord = npf.irr(cashflows)
+        npv_landlord = npf.npv(0.07, cashflows)
+        return df, {"Landlord": {"NPV": npv_landlord, "IRR": irr_landlord}}
 
 # -------------------------
-# Streamlit App
+# PDF export
+# -------------------------
+def export_pdf(summary, financials, df, chart_buf):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+    story = []
+
+    # Logo
+    logo_path = os.path.join(DATA_DIR, "savills_logo.png")
+    if os.path.exists(logo_path):
+        story.append(Image(logo_path, width=100, height=50, hAlign="RIGHT"))
+    story.append(Spacer(1, 12))
+
+    # Summary
+    story.append(Paragraph("<b>Summary Inputs</b>", styles['Heading2']))
+    for k, v in summary.items():
+        story.append(Paragraph(f"{k}: {v}", styles['Normal']))
+    story.append(Spacer(1, 12))
+
+    # Financials
+    story.append(Paragraph("<b>Financial Metrics</b>", styles['Heading2']))
+    table_data = [["Metric", *financials.keys()]]
+    metrics = ["NPV (£)", "IRR (%)"]
+    for m in metrics:
+        row = [m]
+        for actor in financials.keys():
+            val = financials[actor][m.split()[0]]
+            if val is None:
+                row.append("-")
+            elif "NPV" in m:
+                row.append(f"£{val:,.0f}")
+            else:
+                row.append(f"{val*100:.1f}%")
+        table_data.append(row)
+
+    table = Table(table_data)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+    ]))
+    story.append(table)
+    story.append(Spacer(1, 12))
+
+    # Chart
+    story.append(Paragraph("<b>Cashflow</b>", styles['Heading2']))
+    story.append(Image(chart_buf, width=400, height=200))
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# -------------------------
+# Streamlit app
 # -------------------------
 def main():
     st.title("☀️ Solar Modelling Tool")
-    
-    solar_df, original_kwp, demand_df = load_data()
-    
-    if solar_df is not None and original_kwp is not None and demand_df is not None:
-        st.sidebar.header("Inputs")
-        solar_kWp = st.sidebar.number_input("Proposed System Size (kWp)", 1.0, 1000.0, 100.0)
-        capex_per_kW = st.sidebar.number_input("CAPEX (£/kW)", 0.0, 5000.0, 800.0)
-        opex_per_kW = st.sidebar.number_input("O&M (£/kW/year)", 0.0, 200.0, 20.0)
-        ppa_rate = st.sidebar.number_input("PPA Rate (£/kWh)", 0.0, 1.0, 0.05)
-        import_tariff = st.sidebar.number_input("Import Tariff (£/kWh)", 0.0, 1.0, 0.25)
-        export_tariff = st.sidebar.number_input("Export Tariff (£/kWh)", 0.0, 1.0, 0.05)
-        project_life = st.sidebar.number_input("Project Lifespan (years)", 1, 50, 25)
-        replace_years = st.sidebar.multiselect("Replacement Years", list(range(1, 51)), [15])
-        inflation = st.sidebar.number_input("Annual Inflation Rate (%)", 0.0, 10.0, 2.0) / 100
-        export_allowed = st.sidebar.checkbox("Export Allowed?", True)
-        
-        model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
-        
-        if st.button("Run Simulation"):
-            df, financials, scaled_solar, capex = simulate(
-                solar_df.iloc[:, 0], original_kwp, demand_df.iloc[:, 0], solar_kWp,
-                capex_per_kW, opex_per_kW, ppa_rate, import_tariff, export_tariff,
-                project_life, replace_years, inflation, export_allowed, model
-            )
-            
-            st.header("Simulation Results")
-            st.dataframe(df)
-            
-            st.write(f"**Initial CAPEX: £{capex:,.2f}**")
-            st.write(f"**NPV: £{financials[model]['NPV']:,.2f}**")
-            st.write(f"**IRR: {financials[model]['IRR']*100:.2f}%**")
-            
-            st.header("Visualisation")
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(df['Year'], df['Annual Cashflow'], label="Annual Cashflow")
-            ax.set_xlabel("Year")
-            ax.set_ylabel("£")
-            ax.set_title("Annual Cashflow over Project Life")
-            ax.legend()
-            st.pyplot(fig)
-    
+
+    profiles = load_profiles()
+
+    # ---- Inputs ----
+    st.subheader("Demand Profile")
+    demand_option = st.radio("Do you have half-hourly demand profile?", ["Upload CSV", "Use Benchmark Profile"])
+    if demand_option == "Upload CSV":
+        demand_file = st.file_uploader("Upload demand CSV", type="csv", key="demand_upload")
+        demand_profile = pd.read_csv(demand_file) if demand_file else None
     else:
-        st.info("Please upload both solar generation and demand CSV files and enter original kWp.")
+        site_type = st.selectbox("Select Site Type", ["Office", "Storage"])
+        benchmark_key = "Benchmark_Office" if site_type == "Office" else "Benchmark_Storage"
+        demand_profile = profiles[benchmark_key]
+
+    st.subheader("Solar Profile")
+    solar_option = st.radio("Do you have half-hourly solar profile?", ["Upload CSV", "Use Regional Profile"])
+    if solar_option == "Upload CSV":
+        solar_file = st.file_uploader("Upload solar CSV", type="csv", key="solar_upload")
+        solar_profile = pd.read_csv(solar_file) if solar_file else None
+    else:
+        region = st.selectbox("Select Region", ["South", "Midlands", "Scotland"])
+        solar_profile = profiles[f"Solar_{region}"]
+
+    system_size = st.number_input("System Size (kW)", min_value=10, max_value=5000, value=500, step=10)
+
+    # New inputs
+    capex_per_kw = st.number_input("CAPEX (£/kW)", 0.0, 5000.0, 800.0)
+    opex_per_kw = st.number_input("O&M (£/kW/year)", 0.0, 200.0, 15.0)
+    ppa_rate = st.number_input("PPA Rate (£/kWh)", 0.0, 1.0, 0.18)
+    import_tariff = st.number_input("Import Tariff (£/kWh)", 0.0, 1.0, 0.25)
+    export_tariff = st.number_input("Export Tariff (£/kWh)", 0.0, 1.0, 0.08)
+    project_life = st.number_input("Project Lifespan (years)", 1, 50, 25)
+    replace_years = st.sidebar.multiselect("Replacement Years", list(range(1, 51)), [15])
+    inflation = st.number_input("Annual Inflation Rate (%)", 0.0, 10.0, 2.0) / 100
+    export_allowed = st.checkbox("Export Allowed?", True)
+
+    model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
+
+    # Run simulation button
+    if st.button("Run / Update Simulation"):
+        if demand_profile is not None and solar_profile is not None:
+            df, financials = calculate_financials(
+                model, system_size, solar_profile, demand_profile,
+                project_life, capex_per_kw, opex_per_kw, import_tariff,
+                export_tariff, ppa_rate, replace_years, inflation, export_allowed
+            )
+
+            # Summary
+            st.subheader("Summary Inputs")
+            st.write({
+                "System Size (kW)": system_size,
+                "Financial Model": model,
+                "CAPEX (£/kW)": capex_per_kw,
+                "OPEX (£/kW/year)": opex_per_kw,
+                "PPA Rate (£/kWh)": ppa_rate,
+                "Import Tariff (£/kWh)": import_tariff,
+                "Export Tariff (£/kWh)": export_tariff,
+                "Project Lifespan (years)": project_life,
+                "Replacement Years": replace_years,
+                "Inflation Rate": inflation,
+                "Export Allowed": export_allowed
+            })
+
+            # Financials
+            st.subheader("Financial Metrics")
+            st.dataframe(financials)
+
+            # Cashflow plot
+            st.subheader("Yearly Cashflow")
+            fig, ax = plt.subplots()
+            if model == "Owner Occupier":
+                ax.plot(df["Year"], df["Owner Cashflow"], label="Owner")
+            else:
+                ax.plot(df["Year"], df["Landlord Cashflow"], label="Landlord")
+            ax.set_ylabel("£ per year")
+            ax.set_xlabel("Year")
+            ax.legend()
+            buf = BytesIO()
+            fig.savefig(buf, format="png")
+            buf.seek(0)
+            st.pyplot(fig)
+
+            # PDF export
+            pdf_buf = export_pdf(
+                {"System Size (kW)": system_size, "Financial Model": model},
+                financials,
+                df,
+                buf
+            )
+            st.download_button("Download PDF Report", data=pdf_buf, file_name="report.pdf", mime="application/pdf")
+        else:
+            st.warning("Please provide both demand and solar profiles.")
 
 if __name__ == "__main__":
     main()

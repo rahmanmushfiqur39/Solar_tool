@@ -59,22 +59,12 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile, p
                 net -= capex
             cashflows.append(net)
 
-        elif model == "Landlord/Tenant":
-            # Landlord pays capex + opex
-            landlord_cf = export * export_tariff - opex
-            tenant_cf = self_consumption * import_tariff
+        elif model == "Landlord Funded (PPA to Tenant)":
+            # Landlord receives PPA payments, pays OPEX, gets export revenue
+            landlord_cf = self_consumption * ppa_rate + export * export_tariff - opex
             if y == 1:
                 landlord_cf -= capex
-            cashflows.append((landlord_cf, tenant_cf))
-
-        elif model == "PPA":
-            # Landlord installs, tenant pays ppa_rate
-            solar_used = np.minimum(solar_yield, demand).sum()
-            landlord_cf = solar_used * ppa_rate - opex
-            tenant_cf = solar_used * (import_tariff - ppa_rate)
-            if y == 1:
-                landlord_cf -= capex
-            cashflows.append((landlord_cf, tenant_cf))
+            cashflows.append(landlord_cf)
 
     # Convert to DataFrame
     if model == "Owner Occupier":
@@ -82,25 +72,11 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile, p
         irr_owner = np.irr(cashflows)
         npv_owner = np.npv(0.07, cashflows)
         return df, {"Owner Occupier": {"NPV": npv_owner, "IRR": irr_owner}}
-
     else:
-        df = pd.DataFrame({
-            "Year": years,
-            "Landlord Cashflow": [c[0] for c in cashflows],
-            "Tenant Cashflow": [c[1] for c in cashflows],
-        })
-        landlord_cf = [c[0] for c in cashflows]
-        tenant_cf = [c[1] for c in cashflows]
-
-        irr_landlord = np.irr(landlord_cf)
-        irr_tenant = np.irr(tenant_cf) if model != "PPA" else None
-        npv_landlord = np.npv(0.07, landlord_cf)
-        npv_tenant = np.npv(0.07, tenant_cf) if model != "PPA" else None
-
-        return df, {
-            "Landlord": {"NPV": npv_landlord, "IRR": irr_landlord},
-            "Tenant": {"NPV": npv_tenant, "IRR": irr_tenant},
-        }
+        df = pd.DataFrame({"Year": years, "Landlord Cashflow": cashflows})
+        irr_landlord = np.irr(cashflows)
+        npv_landlord = np.npv(0.07, cashflows)
+        return df, {"Landlord": {"NPV": npv_landlord, "IRR": irr_landlord}}
 
 # -------------------------
 # PDF export
@@ -125,7 +101,7 @@ def export_pdf(summary, financials, df, chart_buf):
 
     # Financials
     story.append(Paragraph("<b>Financial Metrics</b>", styles['Heading2']))
-    table_data = [["", *financials.keys()]]
+    table_data = [["Metric", *financials.keys()]]
     metrics = ["NPV (£)", "IRR (%)"]
     for m in metrics:
         row = [m]
@@ -183,7 +159,7 @@ def main():
         solar_profile = profiles[f"Solar_{region}"]
 
     system_size = st.number_input("System Size (kW)", min_value=10, max_value=5000, value=500, step=10)
-    model = st.radio("Financial Model", ["Owner Occupier", "Landlord/Tenant", "PPA"])
+    model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
 
     # Run simulation button
     if st.button("Run / Update Simulation"):
@@ -208,8 +184,8 @@ def main():
                 ax.plot(df["Year"], df["Owner Cashflow"], label="Owner")
             else:
                 ax.plot(df["Year"], df["Landlord Cashflow"], label="Landlord")
-                ax.plot(df["Year"], df["Tenant Cashflow"], label="Tenant")
             ax.set_ylabel("£ per year")
+            ax.set_xlabel("Year")
             ax.legend()
             buf = BytesIO()
             fig.savefig(buf, format="png")

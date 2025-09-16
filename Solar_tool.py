@@ -192,3 +192,40 @@ def main():
 
             # Summary
             st.subheader("Summary Inputs")
+            st.write({
+                "System Size (kW)": system_size,
+                "Financial Model": model,
+            })
+
+            # Financials
+            st.subheader("Financial Metrics")
+            st.dataframe(financials)
+
+            # Cashflow plot
+            st.subheader("Yearly Cashflow")
+            fig, ax = plt.subplots()
+            if model == "Owner Occupier":
+                ax.plot(df["Year"], df["Owner Cashflow"], label="Owner")
+            else:
+                ax.plot(df["Year"], df["Landlord Cashflow"], label="Landlord")
+                ax.plot(df["Year"], df["Tenant Cashflow"], label="Tenant")
+            ax.set_ylabel("£ per year")
+            ax.legend()
+            buf = BytesIO()
+            fig.savefig(buf, format="png")
+            buf.seek(0)
+            st.pyplot(fig)
+
+            # PDF export
+            pdf_buf = export_pdf(
+                {"System Size (kW)": system_size, "Financial Model": model},
+                financials,
+                df,
+                buf
+            )
+            st.download_button("Download PDF Report", data=pdf_buf, file_name="report.pdf", mime="application/pdf")
+        else:
+            st.warning("Please provide both demand and solar profiles.")
+
+if __name__ == "__main__":
+    main()

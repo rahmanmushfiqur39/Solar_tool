@@ -150,7 +150,7 @@ def main():
     profiles = load_profiles()
 
     # ---- Project name input ----
-    project_name = st.text_input("Enter a name for the project", "Holstebro Solar")
+    project_name = st.text_input("Enter a name for the project", "Savills Solar Project")
 
     # ---- Inputs ----
     st.subheader("Demand Profile")
@@ -244,3 +244,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -209,8 +209,8 @@ def main():
                 "Inflation Rate": f"{inflation*100:.2f}%",
                 "Export Allowed": export_allowed
             }
-            summary_df = pd.DataFrame(summary_dict.items(), columns=["Parameter", "Value"])
-            st.table(summary_df)
+            summary_df = pd.DataFrame(list(summary_dict.items()), columns=["Parameter", "Value"])
+            st.table(summary_df)  # index=False is not needed; list() removes numeric index
 
 
             # Financials
@@ -246,6 +246,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

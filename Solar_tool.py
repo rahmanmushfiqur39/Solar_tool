@@ -91,12 +91,24 @@ def export_pdf(project_name, summary, financials, df, chart_buf):
         story.append(Image(logo_path, width=100, height=100, hAlign="RIGHT"))
     story.append(Spacer(1, 12))
 
-    # Summary with project name
+    # Project name
     story.append(Paragraph(f"<b>{project_name}</b>", styles['Heading1']))
     story.append(Spacer(1, 6))
+
+    # Summary Inputs table
     story.append(Paragraph("<b>Summary Inputs</b>", styles['Heading2']))
+    summary_table_data = [["Parameter", "Value"]]
     for k, v in summary.items():
-        story.append(Paragraph(f"{k}: {v}", styles['Normal']))
+        summary_table_data.append([k, str(v)])  # convert values to string for PDF
+
+    summary_table = Table(summary_table_data, hAlign="LEFT")
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+    ]))
+    story.append(summary_table)
     story.append(Spacer(1, 12))
 
     # Financials
@@ -113,20 +125,22 @@ def export_pdf(project_name, summary, financials, df, chart_buf):
                 row.append(f"{val*100:.1f}%")
         table_data.append(row)
 
-    table = Table(table_data)
-    table.setStyle(TableStyle([
+    fin_table = Table(table_data)
+    fin_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
     ]))
-    story.append(table)
+    story.append(fin_table)
     story.append(Spacer(1, 12))
 
-    # Chart
+    # Cashflow chart
     story.append(Paragraph("<b>Cashflow</b>", styles['Heading2']))
     story.append(Image(chart_buf, width=400, height=200))
+
     doc.build(story)
     buffer.seek(0)
     return buffer
+
 
 
 # -------------------------
@@ -249,6 +263,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

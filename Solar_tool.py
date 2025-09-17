@@ -149,7 +149,7 @@ def main():
     # ---- Inputs ----
     st.subheader("Demand Profile")
     demand_option = st.radio("Do you have half-hourly demand profile?", ["Yes - Upload CSV", "No - Use Benchmark Profile"])
-    if demand_option == "Upload CSV":
+    if demand_option == "Yes - Upload CSV":
         demand_file = st.file_uploader("Upload demand CSV", type="csv", key="demand_upload")
         demand_profile = pd.read_csv(demand_file) if demand_file else None
     else:
@@ -159,7 +159,7 @@ def main():
 
     st.subheader("Solar Profile")
     solar_option = st.radio("Do you have half-hourly solar profile?", ["Yes - Upload CSV", "No - Use Regional Profile"])
-    if solar_option == "Upload CSV":
+    if solar_option == "Yes - Upload CSV":
         solar_file = st.file_uploader("Upload solar CSV", type="csv", key="solar_upload")
         solar_profile = pd.read_csv(solar_file) if solar_file else None
     else:
@@ -236,5 +236,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

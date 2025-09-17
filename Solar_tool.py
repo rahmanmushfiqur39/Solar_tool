@@ -8,6 +8,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 import numpy_financial as npf  # Only for IRR
+from datetime import datetime
 
 # -------------------------
 # Data directory
@@ -547,14 +548,20 @@ def main():
 
     # --- Persistent Download Button (single instance) ---
     if st.session_state.get("pdf_buf"):
+        # Format timestamp for filename
+        timestamp = datetime.now().strftime("%y%m%d_%H_%M")
+        safe_project_name = st.session_state["project_name"].replace(" ", "_")  # avoid spaces in filename
+        file_name = f"{timestamp}_{safe_project_name}.pdf"
+    
         st.download_button("Download PDF Report",
                            data=st.session_state["pdf_buf"],
-                           file_name="report.pdf",
+                           file_name=file_name,
                            mime="application/pdf",
                            key="download_pdf_persist")
 
 
 if __name__ == "__main__":
     main()
+
 
 

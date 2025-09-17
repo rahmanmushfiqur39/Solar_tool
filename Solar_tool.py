@@ -30,7 +30,7 @@ def load_profiles():
     return profiles
 
 # -------------------------
-# Financial and energy calculations
+# Financial & energy calculations
 # -------------------------
 def calculate_financials(model,
                          system_size_kw,
@@ -55,12 +55,12 @@ def calculate_financials(model,
     years = list(range(1, project_life + 1))
     cashflows = []
 
-    # Expect second column to be numeric values
+    # Expect second column index 1 to contain numeric values
     for y in years:
         solar_yield_series = solar_profile.iloc[:, 1] * (1 - degradation) ** (y - 1)
         demand_series = demand_profile.iloc[:, 1]
 
-        # per half-hour arrays
+        # half-hourly accounting
         self_consumption_total = np.minimum(solar_yield_series, demand_series).sum()
         export_total = np.maximum(solar_yield_series - demand_series, 0).sum() if export_allowed else 0.0
 
@@ -82,7 +82,7 @@ def calculate_financials(model,
                 landlord_cf -= 0.2 * capex
             cashflows.append(landlord_cf)
 
-    # Build DataFrame and compute IRR (safely)
+    # Build DataFrame and compute IRR safely
     if model == "Owner Occupier":
         df = pd.DataFrame({"Year": years, "Owner Cashflow": cashflows})
         try:
@@ -99,47 +99,51 @@ def calculate_financials(model,
         return df, {"Landlord": {"IRR": irr_landlord}}
 
 # -------------------------
-# PDF export (A4; images sized to fit)
+# PDF export (robust sizing)
 # -------------------------
 def export_pdf(summary, financials, df, chart_buf):
     """
-    summary: dict - inputs
-    financials: dict - IRR only
+    summary: dict of inputs
+    financials: dict with IRR only
     df: cashflow dataframe
     chart_buf: BytesIO PNG (seeked to 0)
     """
     buffer = BytesIO()
-    # Use A4 and reasonable margins
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                             leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
     story = []
 
-    # Compute available width/height
+    # Available content width/height
     page_w, page_h = A4
     avail_w = page_w - doc.leftMargin - doc.rightMargin
     avail_h = page_h - doc.topMargin - doc.bottomMargin
 
-    # Logo top-right with preserved aspect ratio and limited size
+    # Logo top-right: use ImageReader and compute safe size
     logo_path = os.path.join(DATA_DIR, "savills_logo.png")
     if os.path.exists(logo_path):
         try:
             logo_reader = ImageReader(logo_path)
             lw, lh = logo_reader.getSize()
-            # choose target width at most 25% of page width
-            target_w = min(avail_w * 0.25, lw)
-            target_h = (lh / lw) * target_w
-            # also cap height so it doesn't take too much vertical space
-            if target_h > avail_h * 0.18:
+            # target width capped to 25% of content width and 120 pts
+            target_w = min(avail_w * 0.25, 120, lw)
+            # compute height preserving aspect
+            target_h = (lh / lw) * target_w if lw != 0 else min(avail_h * 0.12, 60)
+            # cap height to a fraction of page height
+            max_logo_h = avail_h * 0.18
+            if target_h > max_logo_h:
+                target_h = max_logo_h
+                target_w = (lw / lh) * target_h if lh != 0 else target_w
+            # final safety clamp to avail_h
+            if target_h >= avail_h:
                 target_h = avail_h * 0.18
-                target_w = (lw / lh) * target_h
+                target_w = (lw / lh) * target_h if lh != 0 else target_w
             story.append(Image(logo_reader, width=target_w, height=target_h, hAlign="RIGHT"))
         except Exception:
-            # fallback: insert path-based Image with fixed width
-            story.append(Image(logo_path, width=min(avail_w * 0.25, 120), hAlign="RIGHT"))
-    story.append(Spacer(1, 10))
+            # If ImageReader fails, skip logo silently
+            pass
 
-    # Title under the logo
+    story.append(Spacer(1, 8))
     story.append(Paragraph("<b>Solar Modelling Tool — One-page Report</b>", styles['Title']))
     story.append(Spacer(1, 8))
 
@@ -149,7 +153,7 @@ def export_pdf(summary, financials, df, chart_buf):
         story.append(Paragraph(f"{k}: {v}", styles['Normal']))
     story.append(Spacer(1, 10))
 
-    # Financials: IRR table
+    # Financials table (IRR only)
     story.append(Paragraph("<b>Financial Metrics</b>", styles['Heading2']))
     header = ["Metric", *financials.keys()]
     table_data = [header]
@@ -168,18 +172,18 @@ def export_pdf(summary, financials, df, chart_buf):
     story.append(table)
     story.append(Spacer(1, 12))
 
-    # Chart area: size to fit available width and reasonable height
+    # Cashflow chart - try to include and size to fit page
     if chart_buf is not None:
         try:
             chart_buf.seek(0)
             chart_reader = ImageReader(chart_buf)
             cw, ch = chart_reader.getSize()
             target_w = min(avail_w * 0.95, cw)
-            target_h = (ch / cw) * target_w
-            # cap height to 45% of available page height
-            if target_h > avail_h * 0.45:
-                target_h = avail_h * 0.45
-                target_w = (cw / ch) * target_h
+            target_h = (ch / cw) * target_w if cw != 0 else avail_h * 0.25
+            max_chart_h = avail_h * 0.45
+            if target_h > max_chart_h:
+                target_h = max_chart_h
+                target_w = (cw / ch) * target_h if ch != 0 else target_w
             story.append(Paragraph("<b>Yearly Cashflow</b>", styles['Heading2']))
             story.append(Image(chart_reader, width=target_w, height=target_h))
         except Exception:
@@ -194,19 +198,21 @@ def export_pdf(summary, financials, df, chart_buf):
 # Streamlit app
 # -------------------------
 def main():
-    # default layout
     st.set_page_config(page_title="Solar Modelling Tool", layout="centered")
 
-    # Logo + title in one row (logo left, title right)
+    # Logo left + title right (inline)
     col1, col2 = st.columns([1, 6])
     with col1:
         logo_path = os.path.join(DATA_DIR, "savills_logo.png")
         if os.path.exists(logo_path):
-            st.image(logo_path, width=120)
+            try:
+                st.image(logo_path, width=120)
+            except Exception:
+                # fallback: don't crash
+                pass
     with col2:
         st.title("Solar Modelling Tool")
 
-    # load benchmark profiles (from data folder)
     profiles = load_profiles()
 
     # ---- Inputs ----
@@ -229,7 +235,7 @@ def main():
         region = st.selectbox("Select Region", ["South", "Midlands", "Scotland"])
         solar_profile = profiles[f"Solar_{region}"]
 
-    # Main inputs (all on main page)
+    # Main inputs
     system_size = st.number_input("System Size (kW)", min_value=10, max_value=5000, value=500, step=10)
     capex_per_kw = st.number_input("CAPEX (£/kW)", 0.0, 5000.0, 800.0)
     opex_per_kw = st.number_input("O&M (£/kW/year)", 0.0, 200.0, 15.0)
@@ -244,7 +250,7 @@ def main():
 
     # Run simulation
     if st.button("Run / Update Simulation"):
-        if demand_profile is not None and solar_profile is not None:
+        if (demand_profile is not None) and (solar_profile is not None):
             df, financials = calculate_financials(
                 model, system_size, solar_profile, demand_profile,
                 project_life, capex_per_kw, opex_per_kw, import_tariff,
@@ -267,7 +273,7 @@ def main():
                 "Export Allowed": export_allowed
             })
 
-            # Financials
+            # Financials (IRR only)
             st.subheader("Financial Metrics (IRR only)")
             st.dataframe(financials)
 
@@ -286,7 +292,7 @@ def main():
             buf.seek(0)
             st.pyplot(fig)
 
-            # PDF export (chart bytes in buf)
+            # PDF export
             pdf_buf = export_pdf(
                 {"System Size (kW)": system_size, "Financial Model": model,
                  "CAPEX (£/kW)": capex_per_kw, "OPEX (£/kW/year)": opex_per_kw},
@@ -294,7 +300,6 @@ def main():
                 df,
                 buf
             )
-            # use .getvalue() to pass raw bytes to Streamlit button
             st.download_button("Download PDF Report", data=pdf_buf.getvalue(), file_name="report.pdf", mime="application/pdf")
         else:
             st.warning("Please provide both demand and solar profiles.")

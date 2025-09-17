@@ -195,7 +195,7 @@ def main():
 
             # Summary
             st.subheader("Summary Inputs")
-            st.write({
+            summary_dict = {
                 "Project Name": project_name,
                 "System Size (kWp)": system_size,
                 "Financial Model": model,
@@ -205,10 +205,13 @@ def main():
                 "Import Tariff (£/kWh)": import_tariff,
                 "Export Tariff (£/kWh)": export_tariff,
                 "Project Lifespan (years)": project_life,
-                "Replacement Years": replace_years,
-                "Inflation Rate": inflation,
+                "Replacement Years": ", ".join(map(str, replace_years)),
+                "Inflation Rate": f"{inflation*100:.2f}%",
                 "Export Allowed": export_allowed
-            })
+            }
+            summary_df = pd.DataFrame(summary_dict.items(), columns=["Parameter", "Value"])
+            st.table(summary_df)
+
 
             # Financials
             st.subheader("Financial Metrics (IRR only)")
@@ -243,5 +246,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

@@ -79,11 +79,15 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile,
 # -------------------------
 # PDF export
 # -------------------------
-def export_pdf(summary, financials, df, chart_buf):
+def export_pdf(project_name, summary, financials, df, chart_buf):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
     story = []
+
+    # Title with project name
+    story.append(Paragraph(f"<b>{project_name}</b>", styles['Title']))
+    story.append(Spacer(1, 12))
 
     # Logo on top right
     logo_path = os.path.join(DATA_DIR, "savills_logo.png")
@@ -143,8 +147,10 @@ def main():
         if os.path.exists(logo_path):
             st.image(logo_path, width=120)  # keep aspect ratio
 
-
     profiles = load_profiles()
+
+    # ---- Project name input ----
+    project_name = st.text_input("Enter a name for the project", "Holstebro Solar")
 
     # ---- Inputs ----
     st.subheader("Demand Profile")
@@ -191,6 +197,7 @@ def main():
             # Summary
             st.subheader("Summary Inputs")
             st.write({
+                "Project Name": project_name,
                 "System Size (kWp)": system_size,
                 "Financial Model": model,
                 "CAPEX (£/kWp)": capex_per_kw,
@@ -225,6 +232,7 @@ def main():
 
             # PDF export
             pdf_buf = export_pdf(
+                project_name,
                 {"System Size (kW)": system_size, "Financial Model": model},
                 financials,
                 df,
@@ -236,13 +244,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-

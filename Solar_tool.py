@@ -56,7 +56,7 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile,
             if y == 1:
                 net -= capex
             if y in replace_years:
-                net -= 0.2 * capex  # replacement
+                net -= 0.2 * capex
             cashflows.append(net)
 
         elif model == "Landlord Funded (PPA to Tenant)":
@@ -85,10 +85,10 @@ def export_pdf(summary, financials, df, chart_buf):
     styles = getSampleStyleSheet()
     story = []
 
-    # Logo on top right
+    # Logo (keep aspect ratio, align right)
     logo_path = os.path.join(DATA_DIR, "savills_logo.png")
     if os.path.exists(logo_path):
-        story.append(Image(logo_path, width=100, height=50, hAlign="RIGHT"))
+        story.append(Image(logo_path, width=120, hAlign="RIGHT"))
     story.append(Spacer(1, 12))
 
     # Summary
@@ -104,7 +104,7 @@ def export_pdf(summary, financials, df, chart_buf):
     for m in metrics:
         row = [m]
         for actor in financials.keys():
-            val = financials[actor][m.split()[0]]
+            val = financials[actor]["IRR"]
             if val is None:
                 row.append("-")
             else:
@@ -130,13 +130,16 @@ def export_pdf(summary, financials, df, chart_buf):
 # Streamlit app
 # -------------------------
 def main():
-    st.set_page_config(layout="wide")
-    st.title("☀️ Solar Modelling Tool")
+    st.set_page_config()  # default layout
 
-    # App logo top-left
-    logo_path = os.path.join(DATA_DIR, "savills_logo.png")
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=150)
+    # Logo + title in one row
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        logo_path = os.path.join(DATA_DIR, "savills_logo.png")
+        if os.path.exists(logo_path):
+            st.image(logo_path, width=120)
+    with col2:
+        st.title("Solar Modelling Tool")
 
     profiles = load_profiles()
 

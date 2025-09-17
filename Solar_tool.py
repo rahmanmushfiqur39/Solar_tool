@@ -472,10 +472,10 @@ def main():
             c_buf = BytesIO()
             fig_c.savefig(c_buf, format="png"); c_buf.seek(0)
 
-            # PDF uses the compact fin_view (header + rows), not the 25-row cashflow
+            # PDF uses the compact fin_view
             pdf_buf = export_pdf(
                 project_name, summary_dict,
-                [fin_view[0]] + fin_view[1:],  # header + rows
+                [fin_view[0]] + fin_view[1:],
                 technical_y1, m_buf, c_buf,
                 monthly_title, cashflow_title
             )
@@ -514,18 +514,16 @@ def main():
         })
         st.dataframe(tech_df, hide_index=True, use_container_width=True)
 
-        # --- Correct Financial Metrics table (with matching header background) ---
+        # --- Correct Financial Metrics table with matching header background ---
         st.subheader("Financial Metrics")
         headers = fin_view[0]
         rows = fin_view[1:]
         fin_df = pd.DataFrame(rows, columns=headers).set_index("Metric")
-        
-        # Apply header style to match Summary Inputs & Technical Output tables
         styled_fin_df = fin_df.style.set_table_styles(
-            [{"selector": "thead th", "props": [("background-color", "#f0f0f0"), ("font-weight", "bold")]}]
+            [{"selector": "thead th", "props": [("background-color", "#f0f0f0"),
+                                                ("font-weight", "bold")]}]
         )
-
-st.dataframe(styled_fin_df, use_container_width=True)
+        st.dataframe(styled_fin_df, use_container_width=True)
 
         # --- Charts (re-render from state) ---
         months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
@@ -555,6 +553,8 @@ st.dataframe(styled_fin_df, use_container_width=True)
                            mime="application/pdf",
                            key="download_pdf_persist")
 
+
 if __name__ == "__main__":
     main()
+
 

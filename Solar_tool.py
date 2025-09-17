@@ -178,8 +178,7 @@ def main():
         solar_profile = profiles[f"Solar_{region}"]
 
     # Main inputs
-inverter_replacement_cost_per_kwp = st.number_input("Inverter Replacement Cost (£/kWp)", min_value=0.0, max_value=500.0, value=50.0, step=1.0)
-
+    
     system_size = st.number_input("System Size (kWp)", min_value=10, max_value=5000, value=500, step=10)
     capex_per_kw = st.number_input("CAPEX (£/kWp)", 0.0, 5000.0, 800.0)
     opex_per_kw = st.number_input("O&M (£/kWp/year)", 0.0, 200.0, 15.0)
@@ -188,6 +187,7 @@ inverter_replacement_cost_per_kwp = st.number_input("Inverter Replacement Cost (
     export_tariff = st.number_input("Export Tariff (£/kWh)", 0.0, 1.0, 0.08)
     project_life = st.number_input("Project Lifespan (years)", 1, 50, 25)
     inflation = st.number_input("Annual Inflation Rate (%)", 0.0, 10.0, 0.0) / 100
+    inverter_replacement_cost_per_kwp = st.number_input("Inverter Replacement Cost (£/kWp)", min_value=0.0, max_value=500.0, value=50.0, step=1.0)
     replace_years = st.multiselect("Inverter Replacement Years", list(range(1, 51)), [15])
     export_allowed = st.checkbox("Export Allowed?", True)
     model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
@@ -254,3 +254,4 @@ inverter_replacement_cost_per_kwp = st.number_input("Inverter Replacement Cost (
 
 if __name__ == "__main__":
     main()
+

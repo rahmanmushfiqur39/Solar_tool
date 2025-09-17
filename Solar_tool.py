@@ -209,8 +209,11 @@ def main():
                 "Inflation Rate": f"{inflation*100:.2f}%",
                 "Export Allowed": export_allowed
             }
+
             summary_df = pd.DataFrame(list(summary_dict.items()), columns=["Parameter", "Value"])
-            st.table(summary_df, index=False)  # index=False is not needed; list() removes numeric index
+            
+            st.dataframe(summary_df, hide_index=True, use_container_width=True)
+
 
 
             # Financials
@@ -246,6 +249,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

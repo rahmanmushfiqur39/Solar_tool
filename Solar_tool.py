@@ -35,7 +35,7 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile,
                          import_tariff=0.25, export_tariff=0.08, ppa_rate=0.18,
                          replace_years=[15], inflation=0.02, export_allowed=True):
     
-    degradation = 0.005  # 0.5% per year
+    degradation = 0.005  # Explicitly set to 0.5% per year as per user request
     capex = system_size_kw * capex_per_kw
     opex = system_size_kw * opex_per_kw
 
@@ -64,7 +64,7 @@ def calculate_financials(model, system_size_kw, solar_profile, demand_profile,
             if y == 1:
                 landlord_cf -= capex
             if y in replace_years:
-                landlord_cf -= 0.2 * capex
+                landlord_cf -= inverter_replacement_cost_per_kwp * system_size_kw  # inverter replacement cost as per input
             cashflows.append(landlord_cf)
 
     if model == "Owner Occupier":
@@ -178,6 +178,8 @@ def main():
         solar_profile = profiles[f"Solar_{region}"]
 
     # Main inputs
+inverter_replacement_cost_per_kwp = st.number_input("Inverter Replacement Cost (£/kWp)", min_value=0.0, max_value=500.0, value=50.0, step=1.0)
+
     system_size = st.number_input("System Size (kWp)", min_value=10, max_value=5000, value=500, step=10)
     capex_per_kw = st.number_input("CAPEX (£/kWp)", 0.0, 5000.0, 800.0)
     opex_per_kw = st.number_input("O&M (£/kWp/year)", 0.0, 200.0, 15.0)
@@ -186,7 +188,7 @@ def main():
     export_tariff = st.number_input("Export Tariff (£/kWh)", 0.0, 1.0, 0.08)
     project_life = st.number_input("Project Lifespan (years)", 1, 50, 25)
     inflation = st.number_input("Annual Inflation Rate (%)", 0.0, 10.0, 0.0) / 100
-    replace_years = st.multiselect("Replacement Years", list(range(1, 51)), [15])
+    replace_years = st.multiselect("Inverter Replacement Years", list(range(1, 51)), [15])
     export_allowed = st.checkbox("Export Allowed?", True)
     model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
 
@@ -211,7 +213,7 @@ def main():
                 "Import Tariff (£/kWh)": import_tariff,
                 "Export Tariff (£/kWh)": export_tariff,
                 "Project Lifespan (years)": project_life,
-                "Replacement Years": ", ".join(map(str, replace_years)),
+                "Inverter Replacement Years": ", ".join(map(str, replace_years)),
                 "Inflation Rate": f"{inflation*100:.2f}%",
                 "Export Allowed": export_allowed
             }

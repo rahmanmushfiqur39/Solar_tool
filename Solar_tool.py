@@ -148,7 +148,7 @@ def main():
 
     # ---- Inputs ----
     st.subheader("Demand Profile")
-    demand_option = st.radio("Do you have half-hourly demand profile?", ["Upload CSV", "Use Benchmark Profile"])
+    demand_option = st.radio("Do you have half-hourly demand profile?", ["Yes - Upload CSV", "No - Use Benchmark Profile"])
     if demand_option == "Upload CSV":
         demand_file = st.file_uploader("Upload demand CSV", type="csv", key="demand_upload")
         demand_profile = pd.read_csv(demand_file) if demand_file else None
@@ -158,7 +158,7 @@ def main():
         demand_profile = profiles[benchmark_key]
 
     st.subheader("Solar Profile")
-    solar_option = st.radio("Do you have half-hourly solar profile?", ["Upload CSV", "Use Regional Profile"])
+    solar_option = st.radio("Do you have half-hourly solar profile?", ["Yes - Upload CSV", "No - Use Regional Profile"])
     if solar_option == "Upload CSV":
         solar_file = st.file_uploader("Upload solar CSV", type="csv", key="solar_upload")
         solar_profile = pd.read_csv(solar_file) if solar_file else None
@@ -167,14 +167,14 @@ def main():
         solar_profile = profiles[f"Solar_{region}"]
 
     # Main inputs
-    system_size = st.number_input("System Size (kW)", min_value=10, max_value=5000, value=500, step=10)
-    capex_per_kw = st.number_input("CAPEX (£/kW)", 0.0, 5000.0, 800.0)
-    opex_per_kw = st.number_input("O&M (£/kW/year)", 0.0, 200.0, 15.0)
+    system_size = st.number_input("System Size (kWp)", min_value=10, max_value=5000, value=500, step=10)
+    capex_per_kw = st.number_input("CAPEX (£/kWp)", 0.0, 5000.0, 800.0)
+    opex_per_kw = st.number_input("O&M (£/kWp/year)", 0.0, 200.0, 15.0)
     ppa_rate = st.number_input("PPA Rate (£/kWh)", 0.0, 1.0, 0.18)
     import_tariff = st.number_input("Import Tariff (£/kWh)", 0.0, 1.0, 0.25)
     export_tariff = st.number_input("Export Tariff (£/kWh)", 0.0, 1.0, 0.08)
     project_life = st.number_input("Project Lifespan (years)", 1, 50, 25)
-    inflation = st.number_input("Annual Inflation Rate (%)", 0.0, 10.0, 2.0) / 100
+    inflation = st.number_input("Annual Inflation Rate (%)", 0.0, 10.0, 0.0) / 100
     replace_years = st.multiselect("Replacement Years", list(range(1, 51)), [15])
     export_allowed = st.checkbox("Export Allowed?", True)
     model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
@@ -191,10 +191,10 @@ def main():
             # Summary
             st.subheader("Summary Inputs")
             st.write({
-                "System Size (kW)": system_size,
+                "System Size (kWp)": system_size,
                 "Financial Model": model,
-                "CAPEX (£/kW)": capex_per_kw,
-                "OPEX (£/kW/year)": opex_per_kw,
+                "CAPEX (£/kWp)": capex_per_kw,
+                "OPEX (£/kWp/year)": opex_per_kw,
                 "PPA Rate (£/kWh)": ppa_rate,
                 "Import Tariff (£/kWh)": import_tariff,
                 "Export Tariff (£/kWh)": export_tariff,
@@ -236,4 +236,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

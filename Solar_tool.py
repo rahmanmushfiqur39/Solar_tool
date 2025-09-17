@@ -509,7 +509,7 @@ def main():
                 "pdf_buf": pdf_buf
             })
 
-            st.download_button("Download PDF Report", data=pdf_buf, file_name="report.pdf", mime="application/pdf")
+           
 
     if st.session_state.get("pdf_buf"):
         st.download_button("Download PDF Report", data=st.session_state["pdf_buf"],
@@ -517,6 +517,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

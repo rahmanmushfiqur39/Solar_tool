@@ -323,7 +323,7 @@ def export_pdf(project_name, summary, financials_view, technical_y1, monthly_cha
     for k, v in summary.items():
         summary_table_data.append([k, str(v)])
 
-    summary_table = Table(summary_table_data, hAlign="LEFT", colWidths=[220, 260])
+    summary_table = Table(summary_table_data, hAlign="LEFT")
     summary_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
@@ -340,7 +340,7 @@ def export_pdf(project_name, summary, financials_view, technical_y1, monthly_cha
     tech_table_data.append(["Consumed on site", f"{technical_y1['Consumed on site (kWh)']:.0f}"])
     tech_table_data.append(["Exported", f"{technical_y1['Exported (kWh)']:.0f}"])
 
-    tech_table = Table(tech_table_data, hAlign="LEFT", colWidths=[220, 260])
+    tech_table = Table(tech_table_data, hAlign="LEFT")
     tech_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
@@ -592,4 +592,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

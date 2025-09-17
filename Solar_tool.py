@@ -85,7 +85,11 @@ def export_pdf(summary, financials, df, chart_buf):
     styles = getSampleStyleSheet()
     story = []
 
-# Logo on top right logo_path = os.path.join(DATA_DIR, "savills_logo.png") if os.path.exists(logo_path): story.append(Image(logo_path, width=100, height=50, hAlign="RIGHT")) story.append(Spacer(1, 12))
+    # Logo on top right
+    logo_path = os.path.join(DATA_DIR, "savills_logo.png")
+    if os.path.exists(logo_path):
+        story.append(Image(logo_path, width=100, height=50, hAlign="RIGHT"))
+    story.append(Spacer(1, 12))
 
     # Summary
     story.append(Paragraph("<b>Summary Inputs</b>", styles['Heading2']))
@@ -232,6 +236,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -210,7 +210,7 @@ def main():
                 "Export Allowed": export_allowed
             }
             summary_df = pd.DataFrame(list(summary_dict.items()), columns=["Parameter", "Value"])
-            st.table(summary_df, hide_index=True)  # index=False is not needed; list() removes numeric index
+            st.table(summary_df, index=False)  # index=False is not needed; list() removes numeric index
 
 
             # Financials
@@ -246,6 +246,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

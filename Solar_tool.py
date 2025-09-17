@@ -549,7 +549,7 @@ def main():
     # --- Persistent Download Button (single instance) ---
     if st.session_state.get("pdf_buf"):
         # Format timestamp for filename
-        timestamp = datetime.now().strftime("%y%m%d_%H_%M")
+        timestamp = datetime.now().strftime("%y%m%d_%H%M")
         safe_project_name = st.session_state["project_name"].replace(" ", "_")  # avoid spaces in filename
         file_name = f"{timestamp}_{safe_project_name}.pdf"
     
@@ -562,6 +562,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

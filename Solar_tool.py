@@ -192,4 +192,460 @@ def calculate_project_financials(
                 net_landlord -= float(inverter_replacement_cost_per_kwp) * float(system_size_kwp)
             landlord_cf.append(net_landlord)
 
-            tenant_sav = selfc_y[i] * ma*
+            tenant_sav = selfc_y[i] * max(import_tariff - ppa_rate, 0.0)
+            tenant_cf.append(tenant_sav)
+
+    def _safe_irr(cf):
+        try:
+            val = float(npf.irr(cf))
+            if np.isfinite(val):
+                return val
+            return None
+        except Exception:
+            return None
+
+    if model == "Owner Occupier":
+        irr_owner = _safe_irr(owner_cf)
+        pb_owner = _payback_year(owner_cf)
+        # Treat "income" and "savings" as the same inflow stream over life (as requested)
+        gross_inflow_life = sum([selfc_y[i]*import_tariff + export_y[i]*export_tariff for i in range(len(years))])
+        replacements_total = sum(float(inverter_replacement_cost_per_kwp) * float(system_size_kwp) for y in years if y in replace_years)
+        net_lifetime_value = gross_inflow_life - sum(annual_opex_y) - capex - replacements_total
+        results = {
+            "cashflow_yearly": pd.DataFrame({"Year": years, "Owner": owner_cf}),
+            "irr": {"Owner Occupier": irr_owner},
+            "payback": {"Owner Occupier": pb_owner},
+            "lifetime": {
+                "Owner Occupier": {
+                    "Capex": capex,
+                    "Annual Opex (Y1)": annual_opex_y[0],
+                    # Show both with the same value per requirement
+                    "Net lifetime savings": net_lifetime_value,
+                    "Net lifetime income": net_lifetime_value,
+                }
+            },
+        }
+    else:
+        irr_landlord = _safe_irr(landlord_cf)
+        pb_landlord = _payback_year(landlord_cf)
+        landlord_net_lifetime_income = sum(landlord_cf)
+        tenant_net_lifetime_savings = sum(tenant_cf)
+        results = {
+            "cashflow_yearly": pd.DataFrame({"Year": years, "Landlord": landlord_cf}),
+            "irr": {"Landlord": irr_landlord},
+            "payback": {"Landlord": pb_landlord},
+            "lifetime": {
+                "Landlord": {
+                    "Capex": capex,
+                    "Annual Opex (Y1)": annual_opex_y[0],
+                    "Net lifetime income": landlord_net_lifetime_income,
+                },
+                "Tenant": {
+                    "Net lifetime savings": tenant_net_lifetime_savings
+                }
+            },
+            "tenant_series": tenant_cf,  # kept separately for monthly savings, not for cashflow plot
+        }
+
+    technical_y1 = {
+        "Annual Yield (kWh)": annual_yield_y1,
+        "Consumed on site (kWh)": self_consumption_y1,
+        "Exported (kWh)": export_y1,
+    }
+
+    monthly_savings_y1 = aggregate_monthly_savings(
+        index, solar_hh, demand_hh, model, import_tariff, export_tariff, ppa_rate, export_allowed=export_allowed
+    )
+
+    return results, technical_y1, monthly_savings_y1, index, solar_hh, demand_hh
+
+# -------------------------
+# PDF export
+# -------------------------
+def export_pdf(project_name, summary, financials_view, note_para, technical_y1, monthly_chart_buf, cashflow_chart_buf, monthly_title, cashflow_title):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+    # small grey note style
+    note_style = ParagraphStyle(
+        name="NoteSmall",
+        parent=styles["Normal"],
+        fontSize=9,
+        textColor=colors.grey
+    )
+    story = []
+
+    # Logo
+    logo_path = os.path.join(DATA_DIR, "savills_logo.png")
+    if os.path.exists(logo_path):
+        story.append(Image(logo_path, width=100, height=100, hAlign="RIGHT"))
+    story.append(Spacer(1, 12))
+
+    # Title
+    story.append(Paragraph(f"<b>{project_name}</b>", styles['Heading1']))
+    story.append(Spacer(1, 6))
+
+    # Summary Inputs
+    story.append(Paragraph("<b>Summary Inputs</b>", styles['Heading2']))
+    summary_table_data = [["Parameter", "Value"]]
+    for k, v in summary.items():
+        summary_table_data.append([k, str(v)])
+
+    summary_table = Table(summary_table_data, hAlign="LEFT")
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+    ]))
+    story.append(summary_table)
+    story.append(Spacer(1, 12))
+
+    # Technical Output (Year 1)
+    story.append(Paragraph("<b>Technical Output (Year 1)</b>", styles['Heading2']))
+    tech_table_data = [["Metric", "Value (kWh)"]]
+    tech_table_data.append(["Annual Yield", f"{technical_y1['Annual Yield (kWh)']:,.0f}"])
+    tech_table_data.append(["Consumed on site", f"{technical_y1['Consumed on site (kWh)']:,.0f}"])
+    tech_table_data.append(["Exported", f"{technical_y1['Exported (kWh)']:,.0f}"])
+
+    tech_table = Table(tech_table_data, hAlign="LEFT")
+    tech_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    story.append(tech_table)
+    story.append(Spacer(1, 12))
+
+    # Financial Metrics + note side-by-side
+    story.append(Paragraph("<b>Financial Metrics</b>", styles['Heading2']))
+    fin_table = Table(financials_view, hAlign="LEFT")
+    fin_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+    ]))
+    note_cell = Paragraph(note_para, note_style)
+    side_by_side = Table([[fin_table, note_cell]], colWidths=[350, 170])
+    side_by_side.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP")
+    ]))
+    story.append(side_by_side)
+    story.append(Spacer(1, 12))
+
+    # Monthly Savings Bar
+    story.append(Paragraph(f"<b>{monthly_title}</b>", styles['Heading2']))
+    story.append(Image(monthly_chart_buf, width=450, height=250))
+    story.append(Spacer(1, 12))
+
+    # Cashflow chart
+    story.append(Paragraph(f"<b>{cashflow_title}</b>", styles['Heading2']))
+    story.append(Image(cashflow_chart_buf, width=450, height=250))
+    story.append(Spacer(1, 18))
+
+    # Footer (each on new line, no commas, no hyperlink)
+    footer_text = "Mushfiqur Rahman<br/>Energy Consultant<br/>Savills Earth<br/>mushfiqur.rahman@savills.com"
+    story.append(Paragraph(footer_text, styles['Normal']))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# -------------------------
+# Streamlit app
+# -------------------------
+def main():
+    st.set_page_config(page_title="Solar Modelling Tool")
+
+    col1, col2 = st.columns([6, 1])
+    with col1:
+        st.title("☀️ Solar Modelling Tool")
+    with col2:
+        logo_path = os.path.join(DATA_DIR, "savills_logo.png")
+        if os.path.exists(logo_path):
+            st.image(logo_path, width=120)
+
+    profiles = load_profiles()
+
+    # Ensure session state keys exist
+    for k in ["results", "technical_y1", "monthly_savings_y1", "summary_dict",
+              "fin_view", "monthly_buf", "cashflow_buf", "project_name",
+              "monthly_title", "cashflow_title"]:
+        st.session_state.setdefault(k, None)
+
+    # Project name input
+    project_name = st.text_input("Enter a name for the project", st.session_state.get("project_name") or "Savills Solar Project")
+
+    # ---- Inputs ----
+    st.subheader("Demand Profile")
+    demand_option = st.radio("Do you have half-hourly demand profile?", ["Yes - Upload CSV", "No - Use Benchmark Profile"])
+    floor_space_m2 = 0.0
+    site_type = "Office"
+    if demand_option == "Yes - Upload CSV":
+        demand_file = st.file_uploader("Upload demand CSV", type="csv", key="demand_upload")
+        demand_profile = pd.read_csv(demand_file) if demand_file else None
+        used_benchmark_demand = False
+    else:
+        site_type = st.selectbox("Select Site Type", ["Office", "Storage"])
+        floor_space_m2 = st.number_input("Floor space (m²)", min_value=0.0, value=1000.0, step=10.0)
+        benchmark_key = "Benchmark_Office" if site_type == "Office" else "Benchmark_Storage"
+        demand_profile = profiles[benchmark_key]
+        used_benchmark_demand = True
+
+    st.subheader("Solar Profile")
+    solar_option = st.radio("Do you have half-hourly solar profile?", ["Yes - Upload CSV", "No - Use Regional Profile"])
+    if solar_option == "Yes - Upload CSV":
+        solar_file = st.file_uploader("Upload solar CSV", type="csv", key="solar_upload")
+        solar_profile = pd.read_csv(solar_file) if solar_file else None
+        used_regional_solar = False
+    else:
+        region = st.selectbox("Select Region", ["South", "Midlands", "Scotland"])
+        solar_profile = profiles[f"Solar_{region}"]
+        used_regional_solar = True
+
+    # Main inputs
+    st.subheader("System & Financial Inputs")
+    system_size = st.number_input("System Size (kWp)", min_value=10.0, max_value=500000.0, value=500.0, step=10.0)
+    capex_per_kw = st.number_input("CAPEX (£/kWp)", 0.0, 5000.0, 800.0)
+    opex_per_kw = st.number_input("O&M (£/kWp/year)", 0.0, 200.0, 15.0)
+    inverter_replacement_cost_per_kwp = st.number_input("Inverter Replacement Cost (£/kWp)", min_value=0.0, max_value=1000.0, value=50.0, step=1.0)
+
+    # Move Financial Model right after inverter replacement cost
+    model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
+
+    # Other tariffs and settings
+    import_tariff = st.number_input("Import Tariff (£/kWh)", 0.0, 1.0, 0.25)
+    export_tariff = st.number_input("Export Tariff (£/kWh)", 0.0, 1.0, 0.08)
+    project_life = st.number_input("Project Lifespan (years)", 1, 50, 25)
+    inflation = st.number_input("Annual Inflation Rate (%) (applies to O&M only)", 0.0, 10.0, 0.0) / 100
+    replace_years = st.multiselect("Inverter Replacement Years", list(range(1, 51)), [15])
+    export_allowed = st.checkbox("Export Allowed?", True)
+
+    # Place PPA input just below export, and only show for PPA model
+    ppa_rate = None
+    if model == "Landlord Funded (PPA to Tenant)":
+        ppa_rate = st.number_input("PPA Rate (£/kWh)", 0.0, 1.0, 0.18)
+
+    # Run simulation
+    if st.button("Run / Update Simulation", type="primary"):
+        if demand_profile is not None and solar_profile is not None:
+            if ppa_rate is None and model != "Owner Occupier":
+                st.error("Please provide a PPA rate.")
+            else:
+                results, technical_y1, monthly_savings_y1, index, solar_hh, demand_hh = calculate_project_financials(
+                    model=model,
+                    system_size_kwp=system_size,
+                    solar_df=solar_profile,
+                    demand_df=demand_profile,
+                    project_life=project_life,
+                    capex_per_kwp=capex_per_kw,
+                    opex_per_kwp=opex_per_kw,
+                    import_tariff=import_tariff,
+                    export_tariff=export_tariff,
+                    ppa_rate=ppa_rate if ppa_rate is not None else 0.0,
+                    replace_years=replace_years,
+                    inflation=inflation,
+                    export_allowed=export_allowed,
+                    used_regional_solar=used_regional_solar,
+                    used_benchmark_demand=used_benchmark_demand,
+                    site_type=site_type,
+                    floor_space_m2=floor_space_m2,
+                    inverter_replacement_cost_per_kwp=inverter_replacement_cost_per_kwp
+                )
+
+                # Summary
+                st.subheader("Summary Inputs")
+                summary_dict = {
+                    "Project Name": project_name,
+                    "System Size (kWp)": system_size,
+                    "Financial Model": model,
+                    "CAPEX (£/kWp)": capex_per_kw,
+                    "OPEX (£/kWp/year)": opex_per_kw,
+                    "Inverter Replacement (£/kWp)": inverter_replacement_cost_per_kwp,
+                    "Import Tariff (£/kWh)": import_tariff,
+                    "Export Tariff (£/kWh)": export_tariff,
+                    "Project Lifespan (years)": project_life,
+                    "Inverter Replacement Years": ", ".join(map(str, replace_years)),
+                    "Inflation Rate": f"{inflation*100:.2f}%",
+                    "Export Allowed": "Yes" if export_allowed else "No",
+                    "Demand Source": "Benchmark" if used_benchmark_demand else "Uploaded",
+                    "Site Type": site_type if used_benchmark_demand else "-",
+                    "Floor space (m²)": f"{floor_space_m2:,.0f}" if used_benchmark_demand else "-",
+                    "Solar Source": "Regional" if used_regional_solar else "Uploaded",
+                    "Degradation": "0.5%/yr",
+                }
+                if model == "Landlord Funded (PPA to Tenant)":
+                    summary_dict["PPA Rate (£/kWh)"] = ppa_rate
+
+                summary_df = pd.DataFrame(list(summary_dict.items()), columns=["Parameter", "Value"])
+                st.dataframe(
+                    summary_df.style.set_table_styles(
+                        [{"selector": "th", "props": [("background-color", "#d3d3d3")]}]
+                    ),
+                    hide_index=True, use_container_width=True
+                )
+
+                # Technical Output (Year 1) with thousands separators
+                st.subheader("Technical Output (Year 1)")
+                tech_df = pd.DataFrame({
+                    "Metric": ["Annual Yield (kWh)", "Consumed on site (kWh)", "Exported (kWh)"],
+                    "Value": [
+                        f"{technical_y1['Annual Yield (kWh)']:,.0f}",
+                        f"{technical_y1['Consumed on site (kWh)']:,.0f}",
+                        f"{technical_y1['Exported (kWh)']:,.0f}"
+                    ]
+                })
+                st.dataframe(
+                    tech_df.style.set_table_styles(
+                        [{"selector": "th", "props": [("background-color", "#d3d3d3")]}]
+                    ),
+                    hide_index=True, use_container_width=True
+                )
+
+                # Financial Metrics table build for UI + PDF view matrix
+                st.subheader("Financial Metrics")
+                fin_view = []
+                note_text = ("<b>Note:</b> Tenant columns show N/A where the tenant is not the funding party. "
+                             "In Owner Occupier, there is no tenant; in PPA, tenant does not incur CAPEX or OPEX, "
+                             "so values are not applicable.")
+
+                if model == "Owner Occupier":
+                    headers = ["Metric", "Owner Occupier"]
+                    fin_view.append(headers)
+
+                    capex = results["lifetime"]["Owner Occupier"]["Capex"]
+                    opex_y1 = results["lifetime"]["Owner Occupier"]["Annual Opex (Y1)"]
+                    net_lifetime_savings = results["lifetime"]["Owner Occupier"]["Net lifetime savings"]
+                    net_lifetime_income = results["lifetime"]["Owner Occupier"]["Net lifetime income"]
+                    irr = results["irr"]["Owner Occupier"]
+                    pb = results["payback"]["Owner Occupier"]
+
+                    rows = [
+                        ["Capex", f"£{capex:,.0f}"],
+                        ["Annual Opex", f"£{opex_y1:,.0f} (Y1)"],
+                        ["Net lifetime savings", f"£{net_lifetime_savings:,.0f}"],
+                        ["Net lifetime income", f"£{net_lifetime_income:,.0f}"],  # same by requirement
+                        ["IRR", f"{irr*100:.1f}%" if irr is not None else "N/A"],
+                        ["Payback years", f"{pb}" if pb is not None else "N/A"],
+                    ]
+                    fin_view.extend(rows)
+                    fin_df = pd.DataFrame(rows, columns=headers).set_index("Metric")
+                else:
+                    headers = ["Metric", "Landlord", "Tenant"]
+                    fin_view.append(headers)
+
+                    capex = results["lifetime"]["Landlord"]["Capex"]
+                    opex_y1 = results["lifetime"]["Landlord"]["Annual Opex (Y1)"]
+                    landlord_net_income = results["lifetime"]["Landlord"]["Net lifetime income"]
+                    tenant_net_savings = results["lifetime"]["Tenant"]["Net lifetime savings"]
+                    irr_l = results["irr"]["Landlord"]
+                    pb_l = results["payback"]["Landlord"]
+
+                    rows = [
+                        ["Capex", f"£{capex:,.0f}", "N/A"],
+                        ["Annual Opex", f"£{opex_y1:,.0f} (Y1)", "N/A"],
+                        ["Net lifetime savings", "N/A", f"£{tenant_net_savings:,.0f}"],
+                        ["Net lifetime income", f"£{landlord_net_income:,.0f}", "N/A"],
+                        ["IRR", f"{irr_l*100:.1f}%" if irr_l is not None else "N/A", "N/A"],
+                        ["Payback years", f"{pb_l}" if pb_l is not None else "N/A", "N/A"],
+                    ]
+                    fin_view.extend(rows)
+                    fin_df = pd.DataFrame(rows, columns=headers).set_index("Metric")
+
+                st.dataframe(
+                    fin_df.style.set_table_styles(
+                        [{"selector": "th", "props": [("background-color", "#d3d3d3")]}]
+                    ),
+                    use_container_width=True
+                )
+                st.caption("**Note:** Tenant cells are N/A where the tenant is not the funding party. In Owner Occupier there is no tenant; in PPA the tenant does not incur CAPEX or OPEX.")
+
+                # Charts
+                cash_df = results["cashflow_yearly"]
+                months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+                # Monthly Savings
+                monthly_title = f"Monthly Savings (Year 1) ({'Owner Occupier' if model=='Owner Occupier' else 'Tenant'})"
+                st.subheader(monthly_title)
+                fig_m, ax_m = plt.subplots()
+                ax_m.bar(months, monthly_savings_y1.values)
+                ax_m.set_ylabel("£")
+                ax_m.set_xlabel("Month")
+                ax_m.set_title("Monthly Savings (Year 1)")
+                m_buf = BytesIO()
+                fig_m.tight_layout()
+                fig_m.savefig(m_buf, format="png")
+                m_buf.seek(0)
+                st.pyplot(fig_m)
+
+                # Yearly Cashflow with cumulative line (and remove tenant series from plot)
+                cashflow_for = "Owner Occupier" if model == "Owner Occupier" else "Landlord"
+                cashflow_title = f"Cashflow ({cashflow_for})"
+                st.subheader(cashflow_title)
+                fig_c, ax_c = plt.subplots()
+                if model == "Owner Occupier":
+                    yearly_cf = cash_df["Owner"].values
+                else:
+                    yearly_cf = cash_df["Landlord"].values
+                years = cash_df["Year"].values
+                ax_c.plot(years, yearly_cf, marker="o", label="Annual cashflow")
+                cum_cf = np.cumsum(yearly_cf)
+                ax_c.plot(years, cum_cf, marker="o", linestyle="--", label="Cumulative cashflow")
+                ax_c.set_ylabel("£ per year")
+                ax_c.set_xlabel("Year")
+                ax_c.set_title("Cashflow")
+                ax_c.legend()
+                c_buf = BytesIO()
+                fig_c.tight_layout()
+                fig_c.savefig(c_buf, format="png")
+                c_buf.seek(0)
+                st.pyplot(fig_c)
+
+                # Build financial note (HTML for PDF)
+                note_para = ("<b>Note:</b> Tenant values are shown as N/A where not applicable. "
+                             "For Owner Occupier there is no tenant; for PPA, the tenant does not fund CAPEX or OPEX.")
+
+                # PDF export buffer (created now, but kept in state so it survives reruns)
+                pdf_buf = export_pdf(
+                    project_name=project_name,
+                    summary=summary_dict,
+                    financials_view=[["Metric"] + list(fin_df.columns)] + [[idx] + list(fin_df.loc[idx].values) for idx in fin_df.index],
+                    note_para=note_para,
+                    technical_y1=technical_y1,
+                    monthly_chart_buf=m_buf,
+                    cashflow_chart_buf=c_buf,
+                    monthly_title=monthly_title,
+                    cashflow_title=cashflow_title
+                )
+
+                # Save everything to session so Download doesn't clear the UI
+                st.session_state.update({
+                    "results": results,
+                    "technical_y1": technical_y1,
+                    "monthly_savings_y1": monthly_savings_y1,
+                    "summary_dict": summary_dict,
+                    "fin_view": fin_view,
+                    "monthly_buf": m_buf,
+                    "cashflow_buf": c_buf,
+                    "project_name": project_name,
+                    "monthly_title": monthly_title,
+                    "cashflow_title": cashflow_title,
+                    "pdf_buf": pdf_buf
+                })
+
+                # Download button (using stored buffer)
+                st.download_button("Download PDF Report", data=pdf_buf, file_name="report.pdf", mime="application/pdf", key="download_pdf")
+
+                st.markdown("---")
+                st.markdown("Mushfiqur Rahman\n\nEnergy Consultant\n\nSavills Earth\n\nmushfiqur.rahman@savills.com")
+        else:
+            st.warning("Please provide both demand and solar profiles.")
+
+    # If we already have results in session (e.g., after pressing Download), show Download again so UI doesn't 'vanish'
+    elif st.session_state.get("pdf_buf") is not None:
+        st.download_button("Download PDF Report", data=st.session_state["pdf_buf"], file_name="report.pdf", mime="application/pdf", key="download_pdf_persist")
+        st.markdown("---")
+        st.markdown("Mushfiqur Rahman\n\nEnergy Consultant\n\nSavills Earth\n\nmushfiqur.rahman@savills.com")
+
+if __name__ == "__main__":
+    main()

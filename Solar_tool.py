@@ -514,12 +514,18 @@ def main():
         })
         st.dataframe(tech_df, hide_index=True, use_container_width=True)
 
-        # --- Correct Financial Metrics table (compact summary) ---
+        # --- Correct Financial Metrics table (with matching header background) ---
         st.subheader("Financial Metrics")
         headers = fin_view[0]
         rows = fin_view[1:]
         fin_df = pd.DataFrame(rows, columns=headers).set_index("Metric")
-        st.table(fin_df)
+        
+        # Apply header style to match Summary Inputs & Technical Output tables
+        styled_fin_df = fin_df.style.set_table_styles(
+            [{"selector": "thead th", "props": [("background-color", "#f0f0f0"), ("font-weight", "bold")]}]
+        )
+
+st.dataframe(styled_fin_df, use_container_width=True)
 
         # --- Charts (re-render from state) ---
         months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
@@ -551,3 +557,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

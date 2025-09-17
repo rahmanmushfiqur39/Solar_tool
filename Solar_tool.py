@@ -130,13 +130,19 @@ def export_pdf(summary, financials, df, chart_buf):
 # Streamlit app
 # -------------------------
 def main():
-    st.set_page_config()  # default layout
-    st.title("☀️ Solar Modelling Tool")
+    st.set_page_config(page_title="Solar Modelling Tool")  # default layout
 
-    # App logo top-left
-    logo_path = os.path.join(DATA_DIR, "savills_logo.png")
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=150, hAlign="RIGHT")
+    # create two columns for title and logo
+    col1, col2 = st.columns([6, 1])
+
+    with col1:
+        st.title("☀️ Solar Modelling Tool")
+
+    with col2:
+        logo_path = os.path.join(DATA_DIR, "savills_logo.png")
+        if os.path.exists(logo_path):
+            st.image(logo_path, width=120)  # keep aspect ratio
+
 
     profiles = load_profiles()
 
@@ -230,3 +236,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -375,7 +375,7 @@ def main():
     replace_years = st.multiselect("Inverter Replacement Years", list(range(1, 51)), [15])
     export_allowed = st.checkbox("Export Allowed?", True)
 
-    # --- Run simulation ---
+    # --- Run simulation: compute + store, don't render here ---
     if st.button("Run / Update Simulation", type="primary"):
         if demand_profile is not None and solar_profile is not None:
             results, technical_y1, monthly_savings_y1 = calculate_project_financials(
@@ -408,7 +408,46 @@ def main():
                 "Degradation": "0.5%/yr",
             }
 
-            # --- Charts for PDF ---
+            # Build FINANCIAL METRICS view (compact, not 25 rows)
+            fin_view = []
+            if model == "Owner Occupier":
+                headers = ["Metric", "Owner Occupier"]
+                fin_view.append(headers)
+                capex = results["lifetime"]["Owner Occupier"]["Capex"]
+                opex_y1 = results["lifetime"]["Owner Occupier"]["Annual Opex (Y1)"]
+                net_lifetime_savings = results["lifetime"]["Owner Occupier"]["Net lifetime savings"]
+                net_lifetime_income = results["lifetime"]["Owner Occupier"]["Net lifetime income"]
+                irr = results["irr"]["Owner Occupier"]
+                pb = results["payback"]["Owner Occupier"]
+                rows = [
+                    ["Capex", f"£{capex:,.0f}"],
+                    ["Annual Opex", f"£{opex_y1:,.0f} (Y1)"],
+                    ["Net lifetime savings", f"£{net_lifetime_savings:,.0f}"],
+                    ["Net lifetime income", f"£{net_lifetime_income:,.0f}"],
+                    ["IRR", f"{irr*100:.1f}%" if irr else "N/A"],
+                    ["Payback years", f"{pb}" if pb else "N/A"],
+                ]
+                fin_view.extend(rows)
+            else:
+                headers = ["Metric", "Landlord", "Tenant"]
+                fin_view.append(headers)
+                capex = results["lifetime"]["Landlord"]["Capex"]
+                opex_y1 = results["lifetime"]["Landlord"]["Annual Opex (Y1)"]
+                landlord_net_income = results["lifetime"]["Landlord"]["Net lifetime income"]
+                tenant_net_savings = results["lifetime"]["Tenant"]["Net lifetime savings"]
+                irr_l = results["irr"]["Landlord"]
+                pb_l = results["payback"]["Landlord"]
+                rows = [
+                    ["Capex", f"£{capex:,.0f}", "N/A"],
+                    ["Annual Opex", f"£{opex_y1:,.0f} (Y1)", "N/A"],
+                    ["Net lifetime savings", "N/A", f"£{tenant_net_savings:,.0f}"],
+                    ["Net lifetime income", f"£{landlord_net_income:,.0f}", "N/A"],
+                    ["IRR", f"{irr_l*100:.1f}%" if irr_l else "N/A", "N/A"],
+                    ["Payback years", f"{pb_l}" if pb_l else "N/A", "N/A"],
+                ]
+                fin_view.extend(rows)
+
+            # --- Charts for PDF buffers ---
             months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
             monthly_title = f"Monthly Savings (Year 1) ({'Owner Occupier' if model=='Owner Occupier' else 'Tenant'})"
             fig_m, ax_m = plt.subplots()
@@ -433,9 +472,10 @@ def main():
             c_buf = BytesIO()
             fig_c.savefig(c_buf, format="png"); c_buf.seek(0)
 
+            # PDF uses the compact fin_view (header + rows), not the 25-row cashflow
             pdf_buf = export_pdf(
                 project_name, summary_dict,
-                [results["cashflow_yearly"].columns.tolist()] + results["cashflow_yearly"].values.tolist(),
+                [fin_view[0]] + fin_view[1:],  # header + rows
                 technical_y1, m_buf, c_buf,
                 monthly_title, cashflow_title
             )
@@ -446,6 +486,7 @@ def main():
                 "technical_y1": technical_y1,
                 "monthly_savings_y1": monthly_savings_y1,
                 "summary_dict": summary_dict,
+                "fin_view": fin_view,
                 "project_name": project_name,
                 "monthly_title": monthly_title,
                 "cashflow_title": cashflow_title,
@@ -458,6 +499,7 @@ def main():
         technical_y1 = st.session_state["technical_y1"]
         summary_dict = st.session_state["summary_dict"]
         monthly_savings_y1 = st.session_state["monthly_savings_y1"]
+        fin_view = st.session_state["fin_view"]
 
         st.subheader("Summary Inputs")
         st.dataframe(pd.DataFrame(list(summary_dict.items()), columns=["Parameter", "Value"]),
@@ -472,32 +514,34 @@ def main():
         })
         st.dataframe(tech_df, hide_index=True, use_container_width=True)
 
+        # --- Correct Financial Metrics table (compact summary) ---
         st.subheader("Financial Metrics")
-        if "Owner" in results["cashflow_yearly"].columns:
-            st.table(results["cashflow_yearly"].set_index("Year"))
-        else:
-            st.table(results["cashflow_yearly"].set_index("Year"))
+        headers = fin_view[0]
+        rows = fin_view[1:]
+        fin_df = pd.DataFrame(rows, columns=headers).set_index("Metric")
+        st.table(fin_df)
 
-        st.subheader(st.session_state["monthly_title"])
-        fig_m, ax_m = plt.subplots()
+        # --- Charts (re-render from state) ---
         months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-        ax_m.bar(months, monthly_savings_y1.values)
-        ax_m.set_ylabel("£")
-        ax_m.set_xlabel("Month")
-        st.pyplot(fig_m)
+        st.subheader(st.session_state["monthly_title"])
+        fig_m2, ax_m2 = plt.subplots()
+        ax_m2.bar(months, monthly_savings_y1.values)
+        ax_m2.set_ylabel("£")
+        ax_m2.set_xlabel("Month")
+        st.pyplot(fig_m2)
 
         st.subheader(st.session_state["cashflow_title"])
-        fig_c, ax_c = plt.subplots()
+        fig_c2, ax_c2 = plt.subplots()
         cash_df = results["cashflow_yearly"]
         yearly_cf = cash_df["Owner"].values if "Owner" in cash_df.columns else cash_df["Landlord"].values
         years = cash_df["Year"].values
-        ax_c.plot(years, yearly_cf, marker="o", label="Annual cashflow")
+        ax_c2.plot(years, yearly_cf, marker="o", label="Annual cashflow")
         cum_cf = np.cumsum(yearly_cf)
-        ax_c.plot(years, cum_cf, marker="o", linestyle="--", label="Cumulative cashflow")
-        ax_c.legend()
-        st.pyplot(fig_c)
+        ax_c2.plot(years, cum_cf, marker="o", linestyle="--", label="Cumulative cashflow")
+        ax_c2.legend()
+        st.pyplot(fig_c2)
 
-    # --- Persistent Download Button ---
+    # --- Persistent Download Button (single instance) ---
     if st.session_state.get("pdf_buf"):
         st.download_button("Download PDF Report",
                            data=st.session_state["pdf_buf"],
@@ -507,9 +551,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-

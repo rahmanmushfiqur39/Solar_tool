@@ -252,7 +252,7 @@ def export_pdf(project_name, summary, financials_view, technical_y1,
     summary_table_data = [["Parameter", "Value"]]
     for k, v in summary.items():
         summary_table_data.append([k, str(v)])
-    summary_table = Table(summary_table_data, colWidths=[200, 200], hAlign="LEFT")
+    summary_table = Table(summary_table_data, colWidths=[250, 200], hAlign="LEFT")
     summary_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -265,7 +265,7 @@ def export_pdf(project_name, summary, financials_view, technical_y1,
     tech_table_data.append(["Annual Yield", f"{technical_y1['Annual Yield (kWh)']:,.0f}"])
     tech_table_data.append(["Consumed on site", f"{technical_y1['Consumed on site (kWh)']:,.0f}"])
     tech_table_data.append(["Exported", f"{technical_y1['Exported (kWh)']:,.0f}"])
-    tech_table = Table(tech_table_data, colWidths=[200, 200], hAlign="LEFT")
+    tech_table = Table(tech_table_data, colWidths=[250, 200], hAlign="LEFT")
     tech_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -276,7 +276,7 @@ def export_pdf(project_name, summary, financials_view, technical_y1,
     # Page break before Financial Metrics
     story.append(PageBreak())
     story.append(Paragraph("<b>Financial Metrics</b>", styles['Heading2']))
-    fin_table = Table(financials_view, colWidths=[200, 200, 200] if len(financials_view[0]) == 3 else [200, 200], hAlign="LEFT")
+    fin_table = Table(financials_view, colWidths=[200, 200, 200] if len(financials_view[0]) == 3 else [250, 200], hAlign="LEFT")
     fin_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -517,5 +517,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

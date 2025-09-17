@@ -101,7 +101,7 @@ def export_pdf(project_name, summary, financials, df, chart_buf):
     for k, v in summary.items():
         summary_table_data.append([k, str(v)])  # convert values to string for PDF
 
-    summary_table = Table(summary_table_data, hAlign="LEFT")
+    summary_table = Table(summary_table_data, hAlign="LEFT", colWidths=[200, 200])
     summary_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
@@ -119,13 +119,10 @@ def export_pdf(project_name, summary, financials, df, chart_buf):
         row = [m]
         for actor in financials.keys():
             val = financials[actor][m.split()[0]]
-            if val is None:
-                row.append("-")
-            else:
-                row.append(f"{val*100:.1f}%")
+            row.append(f"{val*100:.1f}%" if val is not None else "-")
         table_data.append(row)
 
-    fin_table = Table(table_data)
+    fin_table = Table(table_data, colWidths=[120] + [100]*len(financials))
     fin_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
@@ -141,28 +138,23 @@ def export_pdf(project_name, summary, financials, df, chart_buf):
     buffer.seek(0)
     return buffer
 
-
-
 # -------------------------
 # Streamlit app
 # -------------------------
 def main():
-    st.set_page_config(page_title="Solar Modelling Tool")  # default layout
+    st.set_page_config(page_title="Solar Modelling Tool")
 
-    # create two columns for title and logo
     col1, col2 = st.columns([6, 1])
-
     with col1:
         st.title("☀️ Solar Modelling Tool")
-
     with col2:
         logo_path = os.path.join(DATA_DIR, "savills_logo.png")
         if os.path.exists(logo_path):
-            st.image(logo_path, width=120)  # keep aspect ratio
+            st.image(logo_path, width=120)
 
     profiles = load_profiles()
 
-    # ---- Project name input ----
+    # Project name input
     project_name = st.text_input("Enter a name for the project", "Savills Solar Project")
 
     # ---- Inputs ----
@@ -225,10 +217,7 @@ def main():
             }
 
             summary_df = pd.DataFrame(list(summary_dict.items()), columns=["Parameter", "Value"])
-            
             st.dataframe(summary_df, hide_index=True, use_container_width=True)
-
-
 
             # Financials
             st.subheader("Financial Metrics (IRR only)")
@@ -249,10 +238,10 @@ def main():
             buf.seek(0)
             st.pyplot(fig)
 
-            # PDF export
+            # PDF export (pass full summary_dict)
             pdf_buf = export_pdf(
                 project_name,
-                {"System Size (kW)": system_size, "Financial Model": model},
+                summary_dict,  # << Pass full summary inputs here
                 financials,
                 df,
                 buf
@@ -263,11 +252,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-

@@ -85,17 +85,15 @@ def export_pdf(project_name, summary, financials, df, chart_buf):
     styles = getSampleStyleSheet()
     story = []
 
-    # Title with project name
-    story.append(Paragraph(f"<b>{project_name}</b>", styles['Title']))
-    story.append(Spacer(1, 12))
-
     # Logo on top right
     logo_path = os.path.join(DATA_DIR, "savills_logo.png")
     if os.path.exists(logo_path):
         story.append(Image(logo_path, width=100, height=100, hAlign="RIGHT"))
     story.append(Spacer(1, 12))
 
-    # Summary
+    # Summary with project name
+    story.append(Paragraph(f"<b>{project_name}</b>", styles['Heading1']))
+    story.append(Spacer(1, 6))
     story.append(Paragraph("<b>Summary Inputs</b>", styles['Heading2']))
     for k, v in summary.items():
         story.append(Paragraph(f"{k}: {v}", styles['Normal']))
@@ -129,6 +127,7 @@ def export_pdf(project_name, summary, financials, df, chart_buf):
     doc.build(story)
     buffer.seek(0)
     return buffer
+
 
 # -------------------------
 # Streamlit app
@@ -244,4 +243,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

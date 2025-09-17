@@ -381,7 +381,7 @@ def export_pdf(project_name, summary, financials_view, technical_y1, monthly_cha
 # Streamlit app
 # -------------------------
 def main():
-    st.set_page_config(page_title="Solar Modelling Tool", layout="wide")
+    st.set_page_config(page_title="Solar Modelling Tool")
 
     col1, col2 = st.columns([6, 1])
     with col1:
@@ -592,3 +592,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

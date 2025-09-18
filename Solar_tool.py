@@ -331,6 +331,7 @@ def main():
         st.session_state.setdefault(k, None)
 
     # --- Inputs ---
+    st.subheader("Project Name")
     project_name = st.text_input("Enter a name for the project",
                                  st.session_state.get("project_name") or "Savills Solar Project")
 
@@ -562,6 +563,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

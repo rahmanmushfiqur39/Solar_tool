@@ -331,19 +331,13 @@ def main():
         st.session_state.setdefault(k, None)
 
     # --- Inputs ---
-    st.subheader("Project Nam")
+    st.subheader("Project Name")
     project_name = st.text_input("Enter a name for the project",
                                  st.session_state.get("project_name") or "Savills Solar Project")
 
-    if "demand_option" not in st.session_state:
-        st.session_state["demand_option"] = "No - Use Benchmark Profile"
-    
-    demand_option = st.radio(
-        "Do you have half-hourly demand profile?",
-        ["No - Use Benchmark Profile", "Yes - Upload CSV"],
-        index=0,
-        key="demand_option",
-    )
+    st.subheader("Demand Profile")
+    demand_option = st.radio("Do you have half-hourly demand profile?",
+                             ["No - Use Benchmark Profile","Yes - Upload CSV"],index=0)
     
     floor_space_m2 = 0.0
     site_type = "Office"
@@ -358,15 +352,9 @@ def main():
         demand_profile = profiles[benchmark_key]
         used_benchmark_demand = True
 
-    if "solar_option" not in st.session_state:
-        st.session_state["solar_option"] = "No - Use Regional Profile"
-    
-    solar_option = st.radio(
-        "Do you have half-hourly solar profile?",
-        ["No - Use Regional Profile", "Yes - Upload CSV"],
-        index=0,
-        key="solar_option",
-    )
+    st.subheader("Solar Profile")
+    solar_option = st.radio("Do you have half-hourly solar profile?",
+                            ["No - Use Regional Profile", "Yes - Upload CSV"],index=0)
 
     if solar_option == "Yes - Upload CSV":
         solar_file = st.file_uploader("Upload solar CSV", type="csv", key="solar_upload")
@@ -577,6 +565,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

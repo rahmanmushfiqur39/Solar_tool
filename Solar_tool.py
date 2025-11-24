@@ -316,7 +316,7 @@ def main():
 
     col1, col2 = st.columns([6, 1])
     with col1:
-        st.title("☀️ Solar Modelling Tool - TEST")
+        st.title("☀️ Solar Modelling Tool - TEST2")
     with col2:
         logo_path = os.path.join(DATA_DIR, "savills_logo.png")
         if os.path.exists(logo_path):

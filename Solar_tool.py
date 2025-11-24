@@ -46,14 +46,32 @@ def fmt(x):
 # Load benchmark and solar profiles
 # -------------------------
 def load_profiles():
-    profiles = {
-        "Benchmark_Office": pd.read_csv(os.path.join(DATA_DIR, "Benchmark_Profile_Office.csv")),
-        "Benchmark_Storage": pd.read_csv(os.path.join(DATA_DIR, "Benchmark_Profile_Storage.csv")),
-        "Solar_South": pd.read_csv(os.path.join(DATA_DIR, "Solar_Profile_South.csv")),
-        "Solar_Midlands": pd.read_csv(os.path.join(DATA_DIR, "Solar_Profile_Midlands.csv")),
-        "Solar_Scotland": pd.read_csv(os.path.join(DATA_DIR, "Solar_Profile_Scotland.csv")),
-    }
-    return profiles
+    profiles = {}
+    missing_profiles = []
+
+    def try_load(name, filename):
+        path = os.path.join(DATA_DIR, filename)
+        if os.path.exists(path):
+            profiles[name] = pd.read_csv(path)
+        else:
+            profiles[name] = None
+            missing_profiles.append(filename)  # Track missing files
+
+    # ---- Benchmark profiles ----
+    try_load("Benchmark_Office", "Benchmark_Profile_Office.csv")
+    try_load("Benchmark_Storage", "Benchmark_Profile_Storage.csv")
+    try_load("Benchmark_RetailPark", "Benchmark_Profile_RetailPark.csv")
+    try_load("Benchmark_Logistics", "Benchmark_Profile_Logistics.csv")
+    try_load("Benchmark_LightManufacturing", "Benchmark_Profile_LightManufacturing.csv")
+    try_load("Benchmark_HeavyManufacturing", "Benchmark_Profile_HeavyManufacturing.csv")
+
+    # ---- Solar profiles ----
+    try_load("Solar_South", "Solar_Profile_South.csv")
+    try_load("Solar_Midlands", "Solar_Profile_Midlands.csv")
+    try_load("Solar_Scotland", "Solar_Profile_Scotland.csv")
+
+    return profiles, missing_profiles
+
 
 # -------------------------
 # Energy + Financial calculations
@@ -322,7 +340,25 @@ def main():
         if os.path.exists(logo_path):
             st.image(logo_path, width=120)
 
-    profiles = load_profiles()
+    profiles, missing = load_profiles()
+
+    # TEMPORARY DEBUGGING: Show what files Streamlit sees in the data folder
+    st.write("📁 Files detected in DATA_DIR:", DATA_DIR)
+
+    try:
+        st.write(os.listdir(DATA_DIR))
+    except Exception as e:
+        st.error(f"Error reading DATA_DIR: {e}")
+
+    # Show missing file list in the UI
+    if missing:
+        missing_list = "\n".join(f"- {m}" for m in missing)
+        st.warning(
+            f"⚠️ The following profiles were not loaded because the files are missing:\n\n{missing_list}\n\n"
+            f"Please upload them into the `data/` folder."
+        )
+
+
 
     # Initialise session state
     for k in ["results", "technical_y1", "monthly_savings_y1",
@@ -346,22 +382,51 @@ def main():
         demand_profile = pd.read_csv(demand_file) if demand_file else None
         used_benchmark_demand = False
     else:
-        site_type = st.selectbox("Select Site Type", ["Office", "Storage"])
+        site_type = st.selectbox(
+            "Select Site Type",
+            ["Office", "Storage", "Retail Park", "Logistics", "Light Manufacturing", "Heavy Manufacturing"],
+            help="Choose the category that best represents the site's energy use pattern. \
+        If unsure, select the closest operational type."
+        )
+
         floor_space_m2 = st.number_input("Floor space (m²)", min_value=0.0, value=1000.0, step=10.0)
-        benchmark_key = "Benchmark_Office" if site_type == "Office" else "Benchmark_Storage"
+        benchmark_map = {
+            "Office": "Benchmark_Office",
+            "Storage": "Benchmark_Storage",
+            "Retail Park": "Benchmark_RetailPark",
+            "Logistics": "Benchmark_Logistics",
+            "Light Manufacturing": "Benchmark_LightManufacturing",
+            "Heavy Manufacturing": "Benchmark_HeavyManufacturing",
+        }
+        benchmark_key = benchmark_map[site_type]
+        # 🔍 SAFETY CHECK — file missing?
+        if profiles[benchmark_key] is None:
+            st.error(f"The benchmark profile for **{site_type}** has not been uploaded yet.\n\n"
+                    "Please upload the CSV file into the `data/` folder.")
+            st.stop()
         demand_profile = profiles[benchmark_key]
         used_benchmark_demand = True
 
     st.subheader("Solar Profile")
-    solar_option = st.radio("Do you have half-hourly solar profile?",
-                            ["No - Use Regional Profile", "Yes - Upload CSV"],index=0)
+    solar_option = st.radio(
+        "Do you have half-hourly solar profile?",
+        ["No - Use Regional Profile", "Yes - Upload CSV"],
+        index=0,
+        help="Upload your own site-specific solar generation data if available. \
+    Otherwise use the pre-loaded regional profiles."
+    )
 
     if solar_option == "Yes - Upload CSV":
         solar_file = st.file_uploader("Upload solar CSV", type="csv", key="solar_upload")
         solar_profile = pd.read_csv(solar_file) if solar_file else None
         used_regional_solar = False
     else:
-        region = st.selectbox("Select Region", ["South", "Midlands", "Scotland"])
+        region = st.selectbox(
+            "Select Region",
+            ["South", "Midlands", "Scotland"],
+            help="Select the region where the site is located. \
+        This chooses the appropriate regional solar irradiance profile."
+        )
         solar_profile = profiles[f"Solar_{region}"]
         used_regional_solar = True
 
@@ -565,15 +630,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-

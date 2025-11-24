@@ -4,3 +4,5 @@ numpy
 matplotlib
 reportlab
 numpy-financial
+python-pptx
+

@@ -366,15 +366,6 @@ def main():
     
         st.caption("Formula: CAPEX (£/kWp) = a × (System Size)^b")
 
-    st.markdown("---")
-    st.subheader("Savills CAPEX Curve Parameters")
-
-    a_value = st.number_input("Coefficient a", value=1398.58238)
-    b_value = st.number_input("Exponent b", value=-0.10814)
-
-    st.caption("Formula: CAPEX (£/kWp) = a × (System Size)^b")
-
-
 
 
     # Initialise session state
@@ -658,5 +649,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

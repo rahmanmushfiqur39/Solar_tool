@@ -342,7 +342,7 @@ def main():
 
     profiles, missing = load_profiles()
 
-    # --- Debug Tools ---
+    # --- Sidebar ---
     with st.sidebar.expander("🛠 Debug Tools", expanded=False):
     
         st.write("**DATA_DIR:**", DATA_DIR)
@@ -358,13 +358,12 @@ def main():
         else:
             st.success("✅ All profile files successfully loaded.")
     
-        st.markdown("---")
-        st.subheader("Savills CAPEX Curve Parameters")
+    with st.sidebar.expander("📈 Savills CAPEX Curve Parameters", expanded=False):
     
         a_value = st.number_input("Coefficient a", value=1398.58238)
         b_value = st.number_input("Exponent b", value=-0.10814)
     
-        st.caption("Formula: CAPEX (£/kWp) = a × (System Size)^b")
+        st.caption("Formula: **CAPEX (£/kWp) = a × (System Size)^b**")
 
 
 
@@ -649,6 +648,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

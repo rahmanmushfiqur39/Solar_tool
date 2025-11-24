@@ -250,18 +250,19 @@ def calculate_project_financials(model, system_size_kwp, solar_df, demand_df,
     return results, technical_y1, monthly_savings_y1
 
 # -------------------------
-# PDF export
+# PPT export
 # -------------------------
 
 def export_ppt(template_bytes, project_name, summary, financials_view, technical_y1,
                monthly_chart_buf, cashflow_chart_buf, monthly_title, cashflow_title,
                layout):
-    \"\"\"Create a PPTX from a template (bytes) and insert tables/charts according to `layout`.
-    - template_bytes: BytesIO or file-like object containing the .pptx template. If None, a blank presentation is used.
-    - layout: dict with keys 'summary','technical','financial','monthly','cashflow' each containing:
-      {'slide': int, 'x': float (inches), 'y': float, 'w': float, 'h': float}
-    \"\"\"
-    # Load presentation
+    """
+    Create a PPTX from a template (BytesIO) and insert tables/charts according to layout.
+    layout keys: 'summary', 'technical', 'financial', 'monthly', 'cashflow'
+    Each layout element contains: slide, x, y, w, h (inches)
+    """
+
+    # Load the presentation (uploaded template or blank)
     if template_bytes:
         try:
             prs = Presentation(template_bytes)
@@ -270,108 +271,109 @@ def export_ppt(template_bytes, project_name, summary, financials_view, technical
     else:
         prs = Presentation()
 
-    def _get_slide(prs, slide_num):
-        idx = max(0, slide_num - 1)
-        if idx < len(prs.slides):
-            return prs.slides[idx]
+    # Helper: get slide by number (auto-create if not enough slides)
+    def get_slide(num):
+        idx = max(0, num - 1)
         while len(prs.slides) <= idx:
-            prs.slides.add_slide(prs.slide_layouts[6])
+            prs.slides.add_slide(prs.slide_layouts[6])  # blank
         return prs.slides[idx]
 
-    # SUMMARY TABLE
+    # ------------------------
+    # Add SUMMARY TABLE
+    # ------------------------
     try:
-        slide = _get_slide(prs, layout[\"summary\"][\"slide\"])
-        left = Inches(layout[\"summary\"][\"x\"])
-        top = Inches(layout[\"summary\"][\"y\"])
-        width = Inches(layout[\"summary\"][\"w\"])
-        height = Inches(layout[\"summary\"][\"h\"])
+        cfg = layout["summary"]
+        slide = get_slide(cfg["slide"])
+        left, top = Inches(cfg["x"]), Inches(cfg["y"])
+        width, height = Inches(cfg["w"]), Inches(cfg["h"])
 
         rows = len(summary) + 1
         cols = 2
-        table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
-        table = table_shape.table
+        table = slide.shapes.add_table(rows, cols, left, top, width, height).table
 
-        table.cell(0,0).text = \"Parameter\"
-        table.cell(0,1).text = \"Value\"
+        table.cell(0, 0).text = "Parameter"
+        table.cell(0, 1).text = "Value"
 
         r = 1
-        for k,v in summary.items():
-            table.cell(r,0).text = str(k)
-            table.cell(r,1).text = str(v)
+        for k, v in summary.items():
+            table.cell(r, 0).text = str(k)
+            table.cell(r, 1).text = str(v)
             r += 1
     except Exception:
         pass
 
-    # TECHNICAL TABLE
+    # ------------------------
+    # Add TECHNICAL TABLE
+    # ------------------------
     try:
-        slide = _get_slide(prs, layout[\"technical\"][\"slide\"])
-        left = Inches(layout[\"technical\"][\"x\"])
-        top = Inches(layout[\"technical\"][\"y\"])
-        width = Inches(layout[\"technical\"][\"w\"])
-        height = Inches(layout[\"technical\"][\"h\"])
+        cfg = layout["technical"]
+        slide = get_slide(cfg["slide"])
+        left, top = Inches(cfg["x"]), Inches(cfg["y"])
+        width, height = Inches(cfg["w"]), Inches(cfg["h"])
 
-        tech_rows = 4
-        tech_cols = 2
-        tech_shape = slide.shapes.add_table(tech_rows, tech_cols, left, top, width, height)
-        ttable = tech_shape.table
+        table = slide.shapes.add_table(4, 2, left, top, width, height).table
 
-        ttable.cell(0,0).text = \"Metric\"
-        ttable.cell(0,1).text = \"Value\"
+        table.cell(0, 0).text = "Metric"
+        table.cell(0, 1).text = "Value"
 
-        ttable.cell(1,0).text = \"Annual Yield (kWh)\"
-        ttable.cell(1,1).text = f\"{technical_y1.get('Annual Yield (kWh)', 0):,.0f}\"
+        table.cell(1, 0).text = "Annual Yield (kWh)"
+        table.cell(1, 1).text = f"{technical_y1['Annual Yield (kWh)']:,.0f}"
 
-        ttable.cell(2,0).text = \"Consumed on site (kWh)\"
-        ttable.cell(2,1).text = f\"{technical_y1.get('Consumed on site (kWh)', 0):,.0f}\"
+        table.cell(2, 0).text = "Consumed on site (kWh)"
+        table.cell(2, 1).text = f"{technical_y1['Consumed on site (kWh)']:,.0f}"
 
-        ttable.cell(3,0).text = \"Exported (kWh)\"
-        ttable.cell(3,1).text = f\"{technical_y1.get('Exported (kWh)', 0):,.0f}\"
+        table.cell(3, 0).text = "Exported (kWh)"
+        table.cell(3, 1).text = f"{technical_y1['Exported (kWh)']:,.0f}"
     except Exception:
         pass
 
-    # FINANCIAL TABLE
+    # ------------------------
+    # Add FINANCIAL TABLE
+    # ------------------------
     try:
-        slide = _get_slide(prs, layout[\"financial\"][\"slide\"])
-        left = Inches(layout[\"financial\"][\"x\"])
-        top = Inches(layout[\"financial\"][\"y\"])
-        width = Inches(layout[\"financial\"][\"w\"])
-        height = Inches(layout[\"financial\"][\"h\"])
+        cfg = layout["financial"]
+        slide = get_slide(cfg["slide"])
+        left, top = Inches(cfg["x"]), Inches(cfg["y"])
+        width, height = Inches(cfg["w"]), Inches(cfg["h"])
 
-        fin_rows = len(financials_view)
-        fin_cols = len(financials_view[0]) if fin_rows>0 else 1
-        fin_shape = slide.shapes.add_table(fin_rows, fin_cols, left, top, width, height)
-        ftable = fin_shape.table
+        rows = len(financials_view)
+        cols = len(financials_view[0])
+
+        table = slide.shapes.add_table(rows, cols, left, top, width, height).table
 
         for i, row in enumerate(financials_view):
             for j, val in enumerate(row):
-                ftable.cell(i,j).text = str(val)
+                table.cell(i, j).text = str(val)
     except Exception:
         pass
 
-    # MONTHLY CHART
+    # ------------------------
+    # Add MONTHLY CHART
+    # ------------------------
     try:
-        slide = _get_slide(prs, layout[\"monthly\"][\"slide\"])
-        left = Inches(layout[\"monthly\"][\"x\"])
-        top = Inches(layout[\"monthly\"][\"y\"])
-        width = Inches(layout[\"monthly\"][\"w\"])
-        height = Inches(layout[\"monthly\"][\"h\"])
+        cfg = layout["monthly"]
+        slide = get_slide(cfg["slide"])
+        left, top = Inches(cfg["x"]), Inches(cfg["y"])
+        width, height = Inches(cfg["w"]), Inches(cfg["h"])
 
         slide.shapes.add_picture(monthly_chart_buf, left, top, width=width, height=height)
     except Exception:
         pass
 
-    # CASHFLOW CHART
+    # ------------------------
+    # Add CASHFLOW CHART
+    # ------------------------
     try:
-        slide = _get_slide(prs, layout[\"cashflow\"][\"slide\"])
-        left = Inches(layout[\"cashflow\"][\"x\"])
-        top = Inches(layout[\"cashflow\"][\"y\"])
-        width = Inches(layout[\"cashflow\"][\"w\"])
-        height = Inches(layout[\"cashflow\"][\"h\"])
+        cfg = layout["cashflow"]
+        slide = get_slide(cfg["slide"])
+        left, top = Inches(cfg["x"]), Inches(cfg["y"])
+        width, height = Inches(cfg["w"]), Inches(cfg["h"])
 
         slide.shapes.add_picture(cashflow_chart_buf, left, top, width=width, height=height)
     except Exception:
         pass
 
+    # Return BytesIO buffer
     out = BytesIO()
     prs.save(out)
     out.seek(0)
@@ -753,6 +755,7 @@ with st.sidebar.expander("📐 PPT Layout Settings", expanded=False):
 
 if __name__ == "__main__":
     main()
+
 
 
 

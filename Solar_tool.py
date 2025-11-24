@@ -419,52 +419,52 @@ def main():
 
 
 
-# -------------------------
-# PowerPoint layout settings (user editable)
-# -------------------------
-with st.sidebar.expander("📐 PPT Layout Settings", expanded=False):
-
-    layout = {}
-
-    layout["summary"] = {
-        "slide": st.number_input("Summary slide", 1, 20, 1),
-        "x": st.number_input("Summary X (inches)", 0.0, 20.0, 1.0),
-        "y": st.number_input("Summary Y (inches)", 0.0, 20.0, 1.5),
-        "w": st.number_input("Summary Width (inches)", 1.0, 20.0, 8.0),
-        "h": st.number_input("Summary Height (inches)", 1.0, 20.0, 3.0),
-    }
-
-    layout["technical"] = {
-        "slide": st.number_input("Technical slide", 1, 20, 2),
-        "x": st.number_input("Technical X (inches)", 0.0, 20.0, 1.0),
-        "y": st.number_input("Technical Y (inches)", 0.0, 20.0, 1.5),
-        "w": st.number_input("Technical Width (inches)", 1.0, 20.0, 8.0),
-        "h": st.number_input("Technical Height (inches)", 1.0, 20.0, 3.0),
-    }
-
-    layout["financial"] = {
-        "slide": st.number_input("Financial slide", 1, 20, 3),
-        "x": st.number_input("Financial X (inches)", 0.0, 20.0, 1.0),
-        "y": st.number_input("Financial Y (inches)", 0.0, 20.0, 1.5),
-        "w": st.number_input("Financial Width (inches)", 1.0, 20.0, 8.0),
-        "h": st.number_input("Financial Height (inches)", 1.0, 20.0, 3.0),
-    }
-
-    layout["monthly"] = {
-        "slide": st.number_input("Monthly chart slide", 1, 20, 4),
-        "x": st.number_input("Monthly X (inches)", 0.0, 20.0, 1.0),
-        "y": st.number_input("Monthly Y (inches)", 0.0, 20.0, 1.0),
-        "w": st.number_input("Monthly Width (inches)", 1.0, 20.0, 8.0),
-        "h": st.number_input("Monthly Height (inches)", 1.0, 20.0, 4.0),
-    }
-
-    layout["cashflow"] = {
-        "slide": st.number_input("Cashflow slide", 1, 20, 5),
-        "x": st.number_input("Cashflow X (inches)", 0.0, 20.0, 1.0),
-        "y": st.number_input("Cashflow Y (inches)", 0.0, 20.0, 1.0),
-        "w": st.number_input("Cashflow Width (inches)", 1.0, 20.0, 8.0),
-        "h": st.number_input("Cashflow Height (inches)", 1.0, 20.0, 4.0),
-    }
+    # -------------------------
+    # PowerPoint layout settings (user editable)
+    # -------------------------
+    with st.sidebar.expander("📐 PPT Layout Settings", expanded=False):
+    
+        layout = {}
+    
+        layout["summary"] = {
+            "slide": st.number_input("Summary slide", 1, 20, 1),
+            "x": st.number_input("Summary X (inches)", 0.0, 20.0, 1.0),
+            "y": st.number_input("Summary Y (inches)", 0.0, 20.0, 1.5),
+            "w": st.number_input("Summary Width (inches)", 1.0, 20.0, 8.0),
+            "h": st.number_input("Summary Height (inches)", 1.0, 20.0, 3.0),
+        }
+    
+        layout["technical"] = {
+            "slide": st.number_input("Technical slide", 1, 20, 2),
+            "x": st.number_input("Technical X (inches)", 0.0, 20.0, 1.0),
+            "y": st.number_input("Technical Y (inches)", 0.0, 20.0, 1.5),
+            "w": st.number_input("Technical Width (inches)", 1.0, 20.0, 8.0),
+            "h": st.number_input("Technical Height (inches)", 1.0, 20.0, 3.0),
+        }
+    
+        layout["financial"] = {
+            "slide": st.number_input("Financial slide", 1, 20, 3),
+            "x": st.number_input("Financial X (inches)", 0.0, 20.0, 1.0),
+            "y": st.number_input("Financial Y (inches)", 0.0, 20.0, 1.5),
+            "w": st.number_input("Financial Width (inches)", 1.0, 20.0, 8.0),
+            "h": st.number_input("Financial Height (inches)", 1.0, 20.0, 3.0),
+        }
+    
+        layout["monthly"] = {
+            "slide": st.number_input("Monthly chart slide", 1, 20, 4),
+            "x": st.number_input("Monthly X (inches)", 0.0, 20.0, 1.0),
+            "y": st.number_input("Monthly Y (inches)", 0.0, 20.0, 1.0),
+            "w": st.number_input("Monthly Width (inches)", 1.0, 20.0, 8.0),
+            "h": st.number_input("Monthly Height (inches)", 1.0, 20.0, 4.0),
+        }
+    
+        layout["cashflow"] = {
+            "slide": st.number_input("Cashflow slide", 1, 20, 5),
+            "x": st.number_input("Cashflow X (inches)", 0.0, 20.0, 1.0),
+            "y": st.number_input("Cashflow Y (inches)", 0.0, 20.0, 1.0),
+            "w": st.number_input("Cashflow Width (inches)", 1.0, 20.0, 8.0),
+            "h": st.number_input("Cashflow Height (inches)", 1.0, 20.0, 4.0),
+        }
     # Initialise session state
     for k in ["results", "technical_y1", "monthly_savings_y1",
               "summary_dict", "fin_view", "project_name",
@@ -755,6 +755,7 @@ with st.sidebar.expander("📐 PPT Layout Settings", expanded=False):
 
 if __name__ == "__main__":
     main()
+
 
 
 

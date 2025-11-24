@@ -390,7 +390,7 @@ def main():
     with col1:
         st.title("☀️ Solar Modelling Tool")
     with col2:
-    pass
+        pass
     profiles, missing = load_profiles()
 
     # --- Sidebar ---
@@ -755,6 +755,7 @@ with st.sidebar.expander("📐 PPT Layout Settings", expanded=False):
 
 if __name__ == "__main__":
     main()
+
 
 
 

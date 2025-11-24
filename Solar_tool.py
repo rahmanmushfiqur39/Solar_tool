@@ -344,20 +344,36 @@ def main():
 
     # --- Debug Tools ---
     with st.sidebar.expander("🛠 Debug Tools", expanded=False):
+    
         st.write("**DATA_DIR:**", DATA_DIR)
     
+        # File visibility
         try:
             st.write("**Files detected:**", os.listdir(DATA_DIR))
         except Exception as e:
             st.error(f"Error reading DATA_DIR: {e}")
     
         if missing:
-            st.warning(
-                "⚠️ Missing profiles:\n" +
-                "\n".join(f"- {m}" for m in missing)
-            )
+            st.warning("⚠️ Missing profiles:\n" + "\n".join(f"- {m}" for m in missing))
         else:
             st.success("✅ All profile files successfully loaded.")
+    
+        st.markdown("---")
+        st.subheader("Savills CAPEX Curve Parameters")
+    
+        a_value = st.number_input("Coefficient a", value=1398.58238)
+        b_value = st.number_input("Exponent b", value=-0.10814)
+    
+        st.caption("Formula: CAPEX (£/kWp) = a × (System Size)^b")
+
+    st.markdown("---")
+    st.subheader("Savills CAPEX Curve Parameters")
+
+    a_value = st.number_input("Coefficient a", value=1398.58238)
+    b_value = st.number_input("Exponent b", value=-0.10814)
+
+    st.caption("Formula: CAPEX (£/kWp) = a × (System Size)^b")
+
 
 
 
@@ -433,7 +449,18 @@ def main():
 
     st.subheader("System & Financial Inputs")
     system_size = st.number_input("System Size (kWp)", min_value=10.0, max_value=500000.0, value=500.0, step=10.0)
-    capex_per_kw = st.number_input("CAPEX (£/kWp)", 0.0, 5000.0, 800.0)
+    capex_option = st.radio(
+        "CAPEX Method",
+        ["Savills Database", "Direct CAPEX Input"],
+        index=0,   # default = first option
+        help="Select whether to use the Savills capex curve or manually enter CAPEX (£/kWp)."
+    )
+    if capex_option == "Direct CAPEX Input":
+        capex_per_kw = st.number_input("CAPEX (£/kWp)", 0.0, 5000.0, 800.0)
+    else:
+        # Use Savills database formula: y = a * x^b
+        capex_per_kw = a_value * (system_size ** b_value)
+        st.info(f"Calculated CAPEX from Savills DB: **£{capex_per_kw:,.0f}/kWp**")
     opex_per_kw = st.number_input("O&M (£/kWp/year)", 0.0, 200.0, 15.0)
     inverter_replacement_cost_per_kwp = st.number_input("Inverter Replacement Cost (£/kWp)", 0.0, 1000.0, 50.0, step=1.0)
     model = st.radio("Financial Model", ["Owner Occupier", "Landlord Funded (PPA to Tenant)"])
@@ -631,4 +658,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

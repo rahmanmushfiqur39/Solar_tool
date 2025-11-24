@@ -342,21 +342,22 @@ def main():
 
     profiles, missing = load_profiles()
 
-    # TEMPORARY DEBUGGING: Show what files Streamlit sees in the data folder
-    st.write("📁 Files detected in DATA_DIR:", DATA_DIR)
-
-    try:
-        st.write(os.listdir(DATA_DIR))
-    except Exception as e:
-        st.error(f"Error reading DATA_DIR: {e}")
-
-    # Show missing file list in the UI
-    if missing:
-        missing_list = "\n".join(f"- {m}" for m in missing)
-        st.warning(
-            f"⚠️ The following profiles were not loaded because the files are missing:\n\n{missing_list}\n\n"
-            f"Please upload them into the `data/` folder."
-        )
+    # --- Debug Tools ---
+    with st.sidebar.expander("🛠 Debug Tools", expanded=False):
+        st.write("**DATA_DIR:**", DATA_DIR)
+    
+        try:
+            st.write("**Files detected:**", os.listdir(DATA_DIR))
+        except Exception as e:
+            st.error(f"Error reading DATA_DIR: {e}")
+    
+        if missing:
+            st.warning(
+                "⚠️ Missing profiles:\n" +
+                "\n".join(f"- {m}" for m in missing)
+            )
+        else:
+            st.success("✅ All profile files successfully loaded.")
 
 
 
@@ -630,3 +631,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

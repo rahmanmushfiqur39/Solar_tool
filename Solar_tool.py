@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from io import BytesIO
+from pptx import Presentation
+from pptx.util import Inches, Pt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -250,85 +252,135 @@ def calculate_project_financials(model, system_size_kwp, solar_df, demand_df,
 # -------------------------
 # PDF export
 # -------------------------
-def export_pdf(project_name, summary, financials_view, technical_y1,
-               monthly_chart_buf, cashflow_chart_buf,
-               monthly_title, cashflow_title):
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer)
-    styles = getSampleStyleSheet()
-    note_style = ParagraphStyle(name="NoteSmall", parent=styles["Normal"], fontSize=9, textColor=colors.grey)
-    story = []
 
-    logo_path = os.path.join(DATA_DIR, "savills_logo.png")
-    if os.path.exists(logo_path):
-        story.append(Image(logo_path, width=100, height=100, hAlign="RIGHT"))
-    story.append(Spacer(1, 12))
+def export_ppt(template_bytes, project_name, summary, financials_view, technical_y1,
+               monthly_chart_buf, cashflow_chart_buf, monthly_title, cashflow_title,
+               layout):
+    \"\"\"Create a PPTX from a template (bytes) and insert tables/charts according to `layout`.
+    - template_bytes: BytesIO or file-like object containing the .pptx template. If None, a blank presentation is used.
+    - layout: dict with keys 'summary','technical','financial','monthly','cashflow' each containing:
+      {'slide': int, 'x': float (inches), 'y': float, 'w': float, 'h': float}
+    \"\"\"
+    # Load presentation
+    if template_bytes:
+        try:
+            prs = Presentation(template_bytes)
+        except Exception:
+            prs = Presentation()
+    else:
+        prs = Presentation()
 
-    story.append(Paragraph(f"<b>{project_name}</b>", styles['Heading1']))
-    story.append(Spacer(1, 6))
+    def _get_slide(prs, slide_num):
+        idx = max(0, slide_num - 1)
+        if idx < len(prs.slides):
+            return prs.slides[idx]
+        while len(prs.slides) <= idx:
+            prs.slides.add_slide(prs.slide_layouts[6])
+        return prs.slides[idx]
 
-    story.append(Paragraph("<b>Summary Inputs</b>", styles['Heading2']))
-    summary_table_data = [["Parameter", "Value"]]
-    for k, v in summary.items():
-        summary_table_data.append([k, str(v)])
-    summary_table = Table(summary_table_data, colWidths=[225, 225], hAlign="LEFT")
-    summary_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    story.append(summary_table)
-    story.append(Spacer(1, 12))
+    # SUMMARY TABLE
+    try:
+        slide = _get_slide(prs, layout[\"summary\"][\"slide\"])
+        left = Inches(layout[\"summary\"][\"x\"])
+        top = Inches(layout[\"summary\"][\"y\"])
+        width = Inches(layout[\"summary\"][\"w\"])
+        height = Inches(layout[\"summary\"][\"h\"])
 
-    story.append(Paragraph("<b>Technical Output (Year 1)</b>", styles['Heading2']))
-    tech_table_data = [["Metric", "Value (kWh)"]]
-    tech_table_data.append(["Annual Yield", f"{technical_y1['Annual Yield (kWh)']:,.0f}"])
-    tech_table_data.append(["Consumed on site", f"{technical_y1['Consumed on site (kWh)']:,.0f}"])
-    tech_table_data.append(["Exported", f"{technical_y1['Exported (kWh)']:,.0f}"])
-    tech_table = Table(tech_table_data, colWidths=[225, 225], hAlign="LEFT")
-    tech_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    story.append(tech_table)
-    story.append(Spacer(1, 12))
+        rows = len(summary) + 1
+        cols = 2
+        table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
+        table = table_shape.table
 
-    # Page break before Financial Metrics
-    story.append(PageBreak())
-    story.append(Paragraph("<b>Financial Metrics</b>", styles['Heading2']))
-    fin_table = Table(financials_view, colWidths=[225, 112, 113] if len(financials_view[0]) == 3 else [225, 225], hAlign="LEFT")
-    fin_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    story.append(fin_table)
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(
-        "<b>Note:</b> Tenant values are shown as N/A where not applicable. "
-        "For Owner Occupier there is no tenant; for PPA the tenant does not fund CAPEX or OPEX.",
-        note_style
-    ))
-    story.append(Spacer(1, 12))
+        table.cell(0,0).text = \"Parameter\"
+        table.cell(0,1).text = \"Value\"
 
-    story.append(Paragraph(monthly_title, styles['Heading2']))
-    story.append(Image(monthly_chart_buf, width=450, height=250))
-    story.append(Spacer(1, 12))
+        r = 1
+        for k,v in summary.items():
+            table.cell(r,0).text = str(k)
+            table.cell(r,1).text = str(v)
+            r += 1
+    except Exception:
+        pass
 
-    # Page break before Cashflow
-    story.append(PageBreak())
-    story.append(Paragraph(cashflow_title, styles['Heading2']))
-    story.append(Image(cashflow_chart_buf, width=450, height=250))
-    story.append(Spacer(1, 18))
+    # TECHNICAL TABLE
+    try:
+        slide = _get_slide(prs, layout[\"technical\"][\"slide\"])
+        left = Inches(layout[\"technical\"][\"x\"])
+        top = Inches(layout[\"technical\"][\"y\"])
+        width = Inches(layout[\"technical\"][\"w\"])
+        height = Inches(layout[\"technical\"][\"h\"])
 
-    footer_text = "Mushfiqur Rahman<br/>Energy Consultant<br/>Savills Earth<br/>mushfiqur.rahman@savills.com"
-    story.append(Paragraph(footer_text, styles['Normal']))
+        tech_rows = 4
+        tech_cols = 2
+        tech_shape = slide.shapes.add_table(tech_rows, tech_cols, left, top, width, height)
+        ttable = tech_shape.table
 
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
+        ttable.cell(0,0).text = \"Metric\"
+        ttable.cell(0,1).text = \"Value\"
+
+        ttable.cell(1,0).text = \"Annual Yield (kWh)\"
+        ttable.cell(1,1).text = f\"{technical_y1.get('Annual Yield (kWh)', 0):,.0f}\"
+
+        ttable.cell(2,0).text = \"Consumed on site (kWh)\"
+        ttable.cell(2,1).text = f\"{technical_y1.get('Consumed on site (kWh)', 0):,.0f}\"
+
+        ttable.cell(3,0).text = \"Exported (kWh)\"
+        ttable.cell(3,1).text = f\"{technical_y1.get('Exported (kWh)', 0):,.0f}\"
+    except Exception:
+        pass
+
+    # FINANCIAL TABLE
+    try:
+        slide = _get_slide(prs, layout[\"financial\"][\"slide\"])
+        left = Inches(layout[\"financial\"][\"x\"])
+        top = Inches(layout[\"financial\"][\"y\"])
+        width = Inches(layout[\"financial\"][\"w\"])
+        height = Inches(layout[\"financial\"][\"h\"])
+
+        fin_rows = len(financials_view)
+        fin_cols = len(financials_view[0]) if fin_rows>0 else 1
+        fin_shape = slide.shapes.add_table(fin_rows, fin_cols, left, top, width, height)
+        ftable = fin_shape.table
+
+        for i, row in enumerate(financials_view):
+            for j, val in enumerate(row):
+                ftable.cell(i,j).text = str(val)
+    except Exception:
+        pass
+
+    # MONTHLY CHART
+    try:
+        slide = _get_slide(prs, layout[\"monthly\"][\"slide\"])
+        left = Inches(layout[\"monthly\"][\"x\"])
+        top = Inches(layout[\"monthly\"][\"y\"])
+        width = Inches(layout[\"monthly\"][\"w\"])
+        height = Inches(layout[\"monthly\"][\"h\"])
+
+        slide.shapes.add_picture(monthly_chart_buf, left, top, width=width, height=height)
+    except Exception:
+        pass
+
+    # CASHFLOW CHART
+    try:
+        slide = _get_slide(prs, layout[\"cashflow\"][\"slide\"])
+        left = Inches(layout[\"cashflow\"][\"x\"])
+        top = Inches(layout[\"cashflow\"][\"y\"])
+        width = Inches(layout[\"cashflow\"][\"w\"])
+        height = Inches(layout[\"cashflow\"][\"h\"])
+
+        slide.shapes.add_picture(cashflow_chart_buf, left, top, width=width, height=height)
+    except Exception:
+        pass
+
+    out = BytesIO()
+    prs.save(out)
+    out.seek(0)
+    return out
 
 # -------------------------
 # Streamlit app
 # -------------------------
+
 def main():
     st.set_page_config(page_title="Solar Modelling Tool")
 
@@ -336,10 +388,7 @@ def main():
     with col1:
         st.title("☀️ Solar Modelling Tool")
     with col2:
-        logo_path = os.path.join(DATA_DIR, "savills_logo.png")
-        if os.path.exists(logo_path):
-            st.image(logo_path, width=120)
-
+    pass
     profiles, missing = load_profiles()
 
     # --- Sidebar ---
@@ -367,10 +416,57 @@ def main():
 
 
 
+
+# -------------------------
+# PowerPoint layout settings (user editable)
+# -------------------------
+with st.sidebar.expander("📐 PPT Layout Settings", expanded=False):
+
+    layout = {}
+
+    layout["summary"] = {
+        "slide": st.number_input("Summary slide", 1, 20, 1),
+        "x": st.number_input("Summary X (inches)", 0.0, 20.0, 1.0),
+        "y": st.number_input("Summary Y (inches)", 0.0, 20.0, 1.5),
+        "w": st.number_input("Summary Width (inches)", 1.0, 20.0, 8.0),
+        "h": st.number_input("Summary Height (inches)", 1.0, 20.0, 3.0),
+    }
+
+    layout["technical"] = {
+        "slide": st.number_input("Technical slide", 1, 20, 2),
+        "x": st.number_input("Technical X (inches)", 0.0, 20.0, 1.0),
+        "y": st.number_input("Technical Y (inches)", 0.0, 20.0, 1.5),
+        "w": st.number_input("Technical Width (inches)", 1.0, 20.0, 8.0),
+        "h": st.number_input("Technical Height (inches)", 1.0, 20.0, 3.0),
+    }
+
+    layout["financial"] = {
+        "slide": st.number_input("Financial slide", 1, 20, 3),
+        "x": st.number_input("Financial X (inches)", 0.0, 20.0, 1.0),
+        "y": st.number_input("Financial Y (inches)", 0.0, 20.0, 1.5),
+        "w": st.number_input("Financial Width (inches)", 1.0, 20.0, 8.0),
+        "h": st.number_input("Financial Height (inches)", 1.0, 20.0, 3.0),
+    }
+
+    layout["monthly"] = {
+        "slide": st.number_input("Monthly chart slide", 1, 20, 4),
+        "x": st.number_input("Monthly X (inches)", 0.0, 20.0, 1.0),
+        "y": st.number_input("Monthly Y (inches)", 0.0, 20.0, 1.0),
+        "w": st.number_input("Monthly Width (inches)", 1.0, 20.0, 8.0),
+        "h": st.number_input("Monthly Height (inches)", 1.0, 20.0, 4.0),
+    }
+
+    layout["cashflow"] = {
+        "slide": st.number_input("Cashflow slide", 1, 20, 5),
+        "x": st.number_input("Cashflow X (inches)", 0.0, 20.0, 1.0),
+        "y": st.number_input("Cashflow Y (inches)", 0.0, 20.0, 1.0),
+        "w": st.number_input("Cashflow Width (inches)", 1.0, 20.0, 8.0),
+        "h": st.number_input("Cashflow Height (inches)", 1.0, 20.0, 4.0),
+    }
     # Initialise session state
     for k in ["results", "technical_y1", "monthly_savings_y1",
               "summary_dict", "fin_view", "project_name",
-              "monthly_title", "cashflow_title", "pdf_buf"]:
+              "monthly_title", "cashflow_title", "ppt_buf"]:
         st.session_state.setdefault(k, None)
 
     # --- Inputs ---
@@ -560,11 +656,20 @@ def main():
             fig_c.savefig(c_buf, format="png"); c_buf.seek(0)
 
             # PDF uses the compact fin_view
-            pdf_buf = export_pdf(
-                project_name, summary_dict,
+            ppt_template_file = st.file_uploader("Upload PowerPoint Template (optional)", type=["pptx"], key="ppt_template")
+
+            # Build PPT report (use uploaded template if provided)
+            ppt_buf = export_ppt(
+                ppt_template_file,
+                project_name,
+                summary_dict,
                 [fin_view[0]] + fin_view[1:],
-                technical_y1, m_buf, c_buf,
-                monthly_title, cashflow_title
+                technical_y1,
+                m_buf,
+                c_buf,
+                monthly_title,
+                cashflow_title,
+                layout
             )
 
             # Save everything in session_state
@@ -577,7 +682,7 @@ def main():
                 "project_name": project_name,
                 "monthly_title": monthly_title,
                 "cashflow_title": cashflow_title,
-                "pdf_buf": pdf_buf
+                "ppt_buf": ppt_buf
             })
 
     # --- Always render results if available ---
@@ -633,22 +738,21 @@ def main():
         st.pyplot(fig_c2)
 
     # --- Persistent Download Button (single instance) ---
-    if st.session_state.get("pdf_buf"):
+    if st.session_state.get("ppt_buf"):
         # Format timestamp for filename
         timestamp = datetime.now().strftime("%y%m%d_%H%M")
         safe_project_name = st.session_state["project_name"].replace(" ", "_")  # avoid spaces in filename
         file_name = f"{timestamp}_{safe_project_name}.pdf"
     
-        st.download_button("Download PDF Report",
-                           data=st.session_state["pdf_buf"],
+        st.download_button("Download PPT Report",
+                           data=st.session_state["ppt_buf"],
                            file_name=file_name,
-                           mime="application/pdf",
-                           key="download_pdf_persist")
+                           mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                           key="download_ppt_persist")
 
 
 if __name__ == "__main__":
     main()
-
 
 
 

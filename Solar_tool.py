@@ -657,23 +657,37 @@ def main():
             c_buf = BytesIO()
             fig_c.savefig(c_buf, format="png"); c_buf.seek(0)
 
-            # PDF uses the compact fin_view
-            ppt_template_file = st.file_uploader("Upload PowerPoint Template (optional)", type=["pptx"], key="ppt_template")
-
-            # Build PPT report (use uploaded template if provided)
-            ppt_buf = export_ppt(
-                ppt_template_file,
-                project_name,
-                summary_dict,
-                [fin_view[0]] + fin_view[1:],
-                technical_y1,
-                m_buf,
-                c_buf,
-                monthly_title,
-                cashflow_title,
-                layout
+            # --- Upload PPT template (persisted across reruns) ---
+            template_file = st.file_uploader(
+                "Upload PowerPoint Template (required for export)",
+                type=["pptx"],
+                key="ppt_template"
             )
-
+            
+            # Save template into session_state when uploaded
+            if template_file is not None:
+                st.session_state["template_file"] = template_file
+            
+            template_to_use = st.session_state.get("template_file", None)
+            
+            # ----------------------
+            # Build PPT only if template is present
+            # ----------------------
+            ppt_buf = None
+            if template_to_use:
+                ppt_buf = export_ppt(
+                    template_to_use,
+                    project_name,
+                    summary_dict,
+                    [fin_view[0]] + fin_view[1:],
+                    technical_y1,
+                    m_buf,
+                    c_buf,
+                    monthly_title,
+                    cashflow_title,
+                    layout
+                )
+            
             # Save everything in session_state
             st.session_state.update({
                 "results": results,
@@ -686,18 +700,23 @@ def main():
                 "cashflow_title": cashflow_title,
                 "ppt_buf": ppt_buf
             })
-            # --- Download PPT button immediately after simulation ---
-            timestamp = datetime.now().strftime("%y%m%d_%H%M")
-            safe_project_name = project_name.replace(" ", "_")
-            file_name = f"{timestamp}_{safe_project_name}.pptx"
             
-            st.download_button(
-                "Download PPT Report",
-                data=ppt_buf,
-                file_name=file_name,
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                key="download_ppt_after_sim"
-            )
+            # --- Download button ---
+            if ppt_buf:
+                timestamp = datetime.now().strftime("%y%m%d_%H%M")
+                safe_project_name = project_name.replace(" ", "_")
+                file_name = f"{timestamp}_{safe_project_name}.pptx"
+            
+                st.download_button(
+                    "Download PPT Report",
+                    data=ppt_buf,
+                    file_name=file_name,
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    key="download_ppt_after_sim"
+                )
+            else:
+                st.info("💡 Upload a PPT template above to enable export.")
+
 
     # --- Always render results if available ---
     if st.session_state.get("results"):
@@ -755,6 +774,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

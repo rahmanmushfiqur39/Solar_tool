@@ -686,6 +686,18 @@ def main():
                 "cashflow_title": cashflow_title,
                 "ppt_buf": ppt_buf
             })
+            # --- Download PPT button immediately after simulation ---
+            timestamp = datetime.now().strftime("%y%m%d_%H%M")
+            safe_project_name = project_name.replace(" ", "_")
+            file_name = f"{timestamp}_{safe_project_name}.pptx"
+            
+            st.download_button(
+                "Download PPT Report",
+                data=ppt_buf,
+                file_name=file_name,
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                key="download_ppt_after_sim"
+            )
 
     # --- Always render results if available ---
     if st.session_state.get("results"):
@@ -739,22 +751,11 @@ def main():
         ax_c2.legend()
         st.pyplot(fig_c2)
 
-    # --- Persistent Download Button (single instance) ---
-    if st.session_state.get("ppt_buf"):
-        # Format timestamp for filename
-        timestamp = datetime.now().strftime("%y%m%d_%H%M")
-        safe_project_name = st.session_state["project_name"].replace(" ", "_")  # avoid spaces in filename
-        file_name = f"{timestamp}_{safe_project_name}.pptx"
-    
-        st.download_button("Download PPT Report",
-                           data=st.session_state["ppt_buf"],
-                           file_name=file_name,
-                           mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                           key="download_ppt_persist")
 
 
 if __name__ == "__main__":
     main()
+
 
 
 

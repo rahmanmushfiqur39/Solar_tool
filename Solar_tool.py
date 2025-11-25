@@ -744,7 +744,7 @@ def main():
         # Format timestamp for filename
         timestamp = datetime.now().strftime("%y%m%d_%H%M")
         safe_project_name = st.session_state["project_name"].replace(" ", "_")  # avoid spaces in filename
-        file_name = f"{timestamp}_{safe_project_name}.pdf"
+        file_name = f"{timestamp}_{safe_project_name}.pptx"
     
         st.download_button("Download PPT Report",
                            data=st.session_state["ppt_buf"],
@@ -755,6 +755,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
